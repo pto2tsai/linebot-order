@@ -20,7 +20,8 @@
     --bg:#F7F9FC; --card:#fff; --ink:#0E1726; --sub:#5f6b7d; --line:#dfe5ee; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.45 -apple-system, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif; }
-  header { position: sticky; top: 0; z-index: 5; background: #fff; color: var(--ink); padding: 10px 16px 10px; border-bottom: 3px solid var(--blue); display: flex; align-items: center; gap: 12px; }
+  .top { position: sticky; top: 0; z-index: 5; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.06); }
+  header { background: #fff; color: var(--ink); padding: 10px 16px 10px; border-bottom: 3px solid var(--blue); display: flex; align-items: center; gap: 12px; }
   header img { height: 40px; width: auto; flex: none; }
   header .who { min-width: 0; }
   header h1 { margin: 0; font-size: 19px; color: var(--blue-d); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -65,9 +66,16 @@
   .qty button:disabled { opacity: .35; }
   .qty input { width: 56px; height: 48px; text-align: center; font-size: 20px; font-weight: 700; border: 0; border-left: 1px solid var(--line); border-right: 1px solid var(--line); border-radius: 0; color: var(--ink); }
   .unit { font-size: 14px; color: var(--sub); }
-  .dues { display: flex; flex-wrap: wrap; gap: 8px; }
-  .dues button { flex: 1 0 30%; padding: 12px 6px; font-size: 17px; border-radius: 12px; border: 2px solid var(--line); background: #fff; color: var(--ink); }
-  .dues button.on { border-color: var(--blue); background: #e8f1fb; color: var(--blue-d); font-weight: 700; }
+  /* 出貨日固定在上面（蔡阿博 9/27：不用滑到最下面才能選） */
+  .duebar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 12px; max-width: 640px; margin: 0 auto; }
+  .duebar .lab { flex: 0 0 100%; font-size: 13px; font-weight: 700; color: var(--sub); }
+  .duebar button { flex: 1 0 22%; padding: 6px 2px; font-size: 15px; border-radius: 10px; border: 2px solid var(--line); background: #fff; color: var(--ink); }
+  .duebar button.on { border-color: var(--blue); background: #e8f1fb; color: var(--blue-d); font-weight: 700; }
+  .duebar button.moved { border-color: var(--coral); background: #fdeae6; color: var(--coral-d); }
+  .duebar button .was { display: block; font-size: 11px; font-weight: 400; color: var(--sub); line-height: 1.1; }
+  .orders { display: flex; gap: 8px; flex-wrap: wrap; }
+  .orders button { padding: 10px 14px; font-size: 16px; border-radius: 12px; border: 2px solid var(--line); background: #fff; color: var(--ink); }
+  .orders button.on { border-color: var(--blue); background: #e8f1fb; color: var(--blue-d); font-weight: 700; }
   .bar { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid var(--line); padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); z-index: 6; }
   .bar button, .sheet .go { width: 100%; max-width: 640px; display: block; margin: 0 auto; height: 56px; border: 0; border-radius: 14px; font-size: 20px; font-weight: 700; background: var(--coral); color: #fff; }
   .bar button:disabled { background: #c9ccd1; }
@@ -82,7 +90,8 @@
 </style>
 </head>
 <body>
-<header><img src="logo.png" alt="崇文海鮮 WENS SEAFOOD"><div class="who"><h1 id="title">下單</h1><p id="subtitle"></p></div></header>
+<div class="top"><header><img src="logo.png" alt="崇文海鮮 WENS SEAFOOD"><div class="who"><h1 id="title">下單</h1><p id="subtitle"></p></div></header>
+<div class="duebar" id="dueBar" hidden></div></div>
 <main><div id="searchWrap" hidden><input class="search" id="search" type="search" placeholder="🔍 找品名" autocomplete="off" enterkeyhint="search"></div>
 <div id="app"><div class="msg">請稍等，正在讀取您常買的品項</div></div></main>
 <div class="bar" id="bar" hidden><button id="send" disabled></button></div>
@@ -93,7 +102,7 @@
   var params0 = new URLSearchParams(location.search);
   var API = params0.get('api') || '';
   var LIFF_ID = params0.get('id') || '';
-  var state = { g: '', items: [], dues: [], due: '', qty: {}, filter: '', cat: '', note: '', recent: [], edit: null, orig: {} };
+  var state = { g: '', items: [], dues: [], due: '', qty: {}, filter: '', cat: '', note: '', recent: [], edit: null, orig: {}, order: '' };
   // 分類：品名有這些字就歸這一類；兩類以上才顯示分類按鈕
   var CATS = [['白蝦', /白蝦/], ['草蝦', /草蝦/], ['透抽／小卷', /透抽|小卷|冰卷|中卷/], ['鮭魚', /鮭/], ['魷魚', /魷/], ['干貝／扇貝', /干貝|扇貝/], ['鯛魚', /鯛/]];
   var REC = '⭐ 推薦';
@@ -120,13 +129,25 @@
 
   // 修改畫面（v0928-O）：帶出這張單原本的件數；送出的是「有變的」
   function loadOrig() {
-    var o = state.edit.orders.filter(function (x) { return x.due === state.due; })[0] || { items: {} };
+    var o = state.edit.orders.filter(function (x) { return x.due === state.order; })[0] || { items: {} };
     state.orig = {}; state.qty = {};
     Object.keys(o.items).forEach(function (c) { state.orig[c] = o.items[c]; state.qty[c] = o.items[c]; });
   }
   function orderNo() {
-    var o = state.edit && state.edit.orders.filter(function (x) { return x.due === state.due; })[0];
+    var o = state.edit && state.edit.orders.filter(function (x) { return x.due === state.order; })[0];
     return o && o.no || '';
+  }
+  function moved() { return !!state.edit && state.due !== state.order; }
+  function dueLabel(v) { var d = state.dues.filter(function (x) { return x.value === v; })[0]; return d ? d.label : ''; }
+  function renderDues() {
+    var box = document.getElementById('dueBar');
+    box.hidden = !state.dues.length;
+    box.innerHTML = '<span class="lab">出貨日</span>' + state.dues.map(function (d) {
+      var on = d.value === state.due;
+      var was = state.edit && d.value === state.order && !on;
+      return '<button data-due="' + esc(d.value) + '" class="' + (on ? 'on' : '') + (on && moved() ? ' moved' : '') + '">' + esc(d.label)
+        + (was ? '<span class="was">原本</span>' : '') + '</button>';
+    }).join('');
   }
   function changes() {
     return state.items.map(function (it) { return { it: it, q: state.qty[it.code] || 0, cur: state.orig[it.code] || 0 }; })
@@ -163,6 +184,11 @@
         return '<button data-cat="' + esc(c === '全部' ? '' : c) + '" class="' + (on ? 'on' : '') + (c === REC ? ' rec' : '') + '">' + esc(c) + '</button>';
       }).join('') + '</div>';
     }
+    if (state.edit && state.edit.orders.length > 1) {
+      html = '<h2>要改哪一張</h2><div class="orders">' + state.edit.orders.map(function (o) {
+        return '<button data-order="' + esc(o.due) + '" class="' + (o.due === state.order ? 'on' : '') + '">' + esc(o.label) + ' 出的單</button>';
+      }).join('') + '</div>' + html;
+    }
     // 常購（含幫這家加的「新增」）在上面，推薦品項另外一區（v0928-N）
     var shown = 0;
     var secs = [['usual', '您常買的品項'], ['rec', '⭐ 推薦品項']];
@@ -182,12 +208,6 @@
       if (sec[0] === 'order' && state.edit.other && !f) html += '<div class="hint">這張單還有 ' + state.edit.other + ' 項，請在群組打字修改</div>';
     });
     if (!shown) html += '<div class="msg">' + (f ? '找不到「' + esc(f) + '」<br>清單上沒有的品項，請直接在群組打字' : '還沒有常買的品項，請直接在群組打字下單') + '</div>';
-    var dueBtns = '<div class="dues">' + state.dues.map(function (d) {
-      return '<button data-due="' + esc(d.value) + '" class="' + (d.value === state.due ? 'on' : '') + '">' + esc(d.label) + '</button>';
-    }).join('') + '</div>';
-    if (!state.edit) html += '<h2>出貨日</h2>' + dueBtns;
-    else if (state.dues.length > 1) html += '<h2>要改哪一天出貨的單</h2>' + dueBtns;
-    else html += '<h2>出貨日</h2><div class="hint">' + esc(state.dues.length ? state.dues[0].label : '') + '（要改出貨日，請在群組跟業務說）</div>';
     if (state.edit && orderNo()) html += '<div class="hint">單號 #' + esc(orderNo()) + '</div>';
     html += '<h2>備註（選填）</h2><textarea class="note" id="note" maxlength="100" placeholder="例如：特殊包裝、送貨時段…">' + esc(state.note) + '</textarea>';
     if (state.recent.length) {
@@ -201,8 +221,9 @@
   }
 
   function updateBar() {
+    renderDues();
     if (state.edit) {
-      var k = changes().length;
+      var k = changes().length + (moved() ? 1 : 0);
       bar.hidden = false;
       sendBtn.disabled = !k;
       sendBtn.textContent = k ? '送出修改（' + k + ' 項）' : '還沒有修改';
@@ -217,13 +238,17 @@
   app.addEventListener('click', function (e) {
     var b = e.target.closest('button');
     if (!b) return;
-    if (b.dataset.due) { state.due = b.dataset.due; if (state.edit) loadOrig(); render(); return; }
+    if (b.dataset.order) { state.order = state.due = b.dataset.order; loadOrig(); render(); return; }
     if (b.dataset.cat !== undefined) { state.cat = b.dataset.cat; render(); return; }
     var c = b.dataset.c;
     if (!c) return;
     var q = Math.max(0, Math.min(9999, (state.qty[c] || 0) + Number(b.dataset.d)));
     state.qty[c] = q;
     render();
+  });
+  document.getElementById('dueBar').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (b && b.dataset.due) { state.due = b.dataset.due; render(); }
   });
   app.addEventListener('input', function (e) {
     var t = e.target;
@@ -250,16 +275,16 @@
   sendBtn.addEventListener('click', function () {
     var edit = !!state.edit;
     var list = edit ? changes() : picked();
-    if (!list.length) return;
+    if (!list.length && !moved()) return;
     var due = state.dues.filter(function (d) { return d.value === state.due; })[0];
     var mask = document.createElement('div');
     mask.className = 'mask';
-    mask.innerHTML = '<div class="sheet"><h3>' + (edit ? '確認修改' + (orderNo() ? ' #' + esc(orderNo()) : '') : '確認訂單') + '</h3><ol>' + list.map(function (x) {
+    mask.innerHTML = '<div class="sheet"><h3>' + (edit ? '確認修改' + (orderNo() ? ' #' + esc(orderNo()) : '') : '確認訂單') + '</h3><ol>' + (list.length ? '' : '<li>品項、件數不變</li>') + list.map(function (x) {
       if (!edit) return '<li>' + esc(x.name) + ' ' + esc(x.spec) + '　<b>' + state.qty[x.code] + esc(x.unit) + '</b></li>';
       var u = esc(x.it.unit);
       var what = !x.q ? '<b style="color:#e35f4a">不要了</b>' : !x.cur ? '<b>' + x.q + u + '</b>（新增）' : x.cur + u + ' → <b>' + x.q + u + '</b>';
       return '<li>' + esc(x.it.name) + ' ' + esc(x.it.spec) + '　' + what + '</li>';
-    }).join('') + '</ol><div class="due">出貨日：' + esc(due ? due.label : '') + '</div>'
+    }).join('') + '</ol><div class="due">出貨日：' + (moved() ? esc(dueLabel(state.order)) + ' → <span style="color:#e35f4a">' + esc(due ? due.label : '') + '</span>' : esc(due ? due.label : '')) + '</div>'
       + (state.note.trim() ? '<div class="due" style="font-weight:400">備註：' + esc(state.note.trim()) + '</div>' : '')
       + '<button class="go" id="go">' + (edit ? '確定修改' : '確定送出') + '</button><button class="back" id="back">再改一下</button></div>';
     document.body.appendChild(mask);
@@ -268,7 +293,7 @@
     document.getElementById('go').onclick = function () {
       var go = this;
       go.disabled = true; go.textContent = '送出中…';
-      call({ liff: 'submit', mode: edit ? 'edit' : '', due: state.due, note: state.note, items: list.map(function (x) {
+      call({ liff: 'submit', mode: edit ? 'edit' : '', due: edit ? state.order : state.due, newDue: edit ? state.due : '', note: state.note, items: list.map(function (x) {
         return edit ? { code: x.it.code, qty: x.q } : { code: x.code, qty: state.qty[x.code] };
       }) })
         .then(function (r) {
@@ -303,8 +328,13 @@
         state.recent = r.recent || [];
         if (mode && r.edit) {
           state.edit = r.edit;
-          state.dues = r.edit.orders.map(function (o) { return { value: o.due, label: o.label }; });
-          state.due = state.dues.length ? state.dues[0].value : '';
+          // 可以改到哪一天：平常可選的出貨日＋原本的出貨日
+          state.dues = (r.dues || []).slice();
+          r.edit.orders.forEach(function (o) {
+            if (o.due && !state.dues.some(function (d) { return d.value === o.due; })) state.dues.push({ value: o.due, label: o.label });
+          });
+          state.dues.sort(function (a, b) { return a.value < b.value ? -1 : 1; });
+          state.order = state.due = r.edit.orders.length ? r.edit.orders[0].due : '';
           loadOrig();
         } else {
           state.dues = r.dues || [];
@@ -312,7 +342,7 @@
         }
         document.getElementById('searchWrap').hidden = state.items.length <= 8;
         document.getElementById('title').textContent = (r.customer ? r.customer + ' ' : '') + (state.edit ? '修改訂單' : '下單');
-        document.getElementById('subtitle').textContent = state.edit ? '按 ＋－ 改件數，減到 0 就是不要這一項' : '選數量、選出貨日，按「送出」';
+        document.getElementById('subtitle').textContent = state.edit ? '改件數、出貨日；減到 0＝不要了' : '選數量、選出貨日，按「送出」';
         render();
       });
     }).catch(function (err) { fail('打不開：' + (err && err.message || err) + '，請關掉重新打開'); });
