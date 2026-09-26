@@ -80,7 +80,8 @@
   .ordbox { background: #fff; border: 2px solid var(--blue); border-radius: 14px; padding: 12px 14px; margin: 4px 0 10px; font-size: 16px; }
   .ordbox .sub { color: var(--sub); font-size: 14px; margin-top: 2px; }
   .ordbox .top1 { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .ordbox .mv { margin-top: 8px; color: var(--coral-d); }
+  .ordbox .no { color: var(--sub); font-size: 14px; }
+  .ordbox .to { color: var(--coral-d); }
   h2 .h2tip { float: right; font-size: 13px; font-weight: 400; color: var(--sub); margin-top: 2px; }
   .ordbox button { flex: none; padding: 8px 14px; font-size: 15px; border-radius: 10px; border: 1px solid var(--blue); background: #fff; color: var(--blue); font-weight: 700; }
   .hist { background: #fff; border-radius: 14px; padding: 10px 14px; margin: 8px 0; }
@@ -230,17 +231,17 @@
 
   function render() {
     var o = cur();
-    document.getElementById('subtitle').textContent = o ? '這天已經有單，直接改件數、出貨日' : '選出貨日、選數量，按「送出」';
+    document.getElementById('subtitle').textContent = o ? '修改這天的單' : '選出貨日、選數量，按「送出」';
     var f = state.filter.trim();
     var html = '';
     if (o) {
       // 蔡阿博 9/27：說明放到「這天的品項」右邊；「改到別天」改叫「修改日期」
-      html += '<div class="ordbox"><div class="top1"><div><b>' + esc(dueLabel(state.due)) + ' 已經有單</b>'
-        + (o.no ? '<div class="sub">單號 #' + esc(o.no) + '</div>' : '') + '</div>'
-        + (state.moveTo || state.moving ? '<button data-act="unmove">不改日期</button>' : '<button data-act="move">📅 修改日期</button>') + '</div>'
-        + (state.moveTo ? '<div class="mv">出貨日改成 <b>' + esc(dueLabel(state.moveTo)) + '</b></div>'
-          : state.moving ? '<div class="mv">請點最上面要改到哪一天</div>' : '')
-        + '</div>';
+      // 蔡阿博 9/27：藍框簡單就好，一行
+      html += '<div class="ordbox"><div class="top1"><div><b>'
+        + (state.moveTo ? esc(dueLabel(state.due)) + ' → <span class="to">' + esc(dueLabel(state.moveTo)) + '</span>'
+          : state.moving ? '點上面選新日期' : esc(dueLabel(state.due)) + ' 的單')
+        + '</b>' + (o.no && !state.moving ? ' <span class="no">#' + esc(o.no) + '</span>' : '') + '</div>'
+        + (state.moveTo || state.moving ? '<button data-act="unmove">不改了</button>' : '<button data-act="move">📅 修改日期</button>') + '</div></div>';
     }
     var cats = [];
     state.items.forEach(function (it) { var c = catOf(it); if (cats.indexOf(c) === -1) cats.push(c); });
