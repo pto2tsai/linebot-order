@@ -76,7 +76,8 @@
 </head>
 <body>
 <header><img src="logo.png" alt="崇文海鮮 WENS SEAFOOD"><div class="who"><h1 id="title">下單</h1><p id="subtitle"></p></div></header>
-<main id="app"><div class="msg">請稍等，正在讀取您常買的品項</div></main>
+<main><div id="searchWrap" hidden><input class="search" id="search" type="search" placeholder="🔍 找品名" autocomplete="off" enterkeyhint="search"></div>
+<div id="app"><div class="msg">請稍等，正在讀取您常買的品項</div></div></main>
 <div class="bar" id="bar" hidden><button id="send" disabled></button></div>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
 <script>
@@ -95,7 +96,7 @@
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function show(html) { app.innerHTML = html; }
-  function fail(text) { bar.hidden = true; document.getElementById('subtitle').textContent = ''; show('<div class="msg err">' + esc(text) + '</div>'); }
+  function fail(text) { bar.hidden = true; document.getElementById('searchWrap').hidden = true; document.getElementById('subtitle').textContent = ''; show('<div class="msg err">' + esc(text) + '</div>'); }
 
   function call(body) {
     body.idToken = liff.getIDToken();
@@ -112,7 +113,6 @@
   function render() {
     var f = state.filter.trim();
     var html = '';
-    if (state.items.length > 8) html += '<input class="search" id="search" placeholder="🔍 找品名" value="' + esc(state.filter) + '">';
     var cats = [];
     state.items.forEach(function (it) { var c = catOf(it); if (cats.indexOf(c) === -1) cats.push(c); });
     cats.sort(function (a, b) { return (a === '其他') - (b === '其他'); });
@@ -126,7 +126,7 @@
     var shown = 0;
     state.items.forEach(function (it) {
       if (f && (it.name + it.spec).indexOf(f) === -1) return;
-      if (state.cat && catOf(it) !== state.cat) return;
+      if (!f && state.cat && catOf(it) !== state.cat) return;   // 有打字搜尋就找全部，不管分類
       shown++;
       var q = state.qty[it.code] || 0;
       var out = it.stock === '缺貨';
@@ -149,9 +149,7 @@
           + '<span class="st ' + (o.status === '已出貨' ? 'ship' : 'wait') + '">' + esc(o.status) + '</span></div>';
       }).join('') + '</div>';
     }
-    var hadFocus = document.activeElement && document.activeElement.id === 'search';
     show(html);
-    if (hadFocus) { var s = document.getElementById('search'); s.focus(); s.setSelectionRange(s.value.length, s.value.length); }
     updateBar();
   }
 
@@ -175,7 +173,6 @@
   });
   app.addEventListener('input', function (e) {
     var t = e.target;
-    if (t.id === 'search') { state.filter = t.value; render(); return; }
     if (t.id === 'note') { state.note = t.value; return; }
     if (t.dataset.c) {
       var q = parseInt(String(t.value).replace(/[^0-9]/g, ''), 10) || 0;
@@ -186,6 +183,14 @@
       updateBar();
     }
   });
+
+  // 搜尋框放在清單外面、不跟著重畫；注音／倉頡選字中（composition）不搜尋，選好字才找（9/28 測試群：打出「ㄅㄅㄞㄞ」）
+  var searchBox = document.getElementById('search');
+  var composing = false;
+  function doSearch() { state.filter = searchBox.value; render(); }
+  searchBox.addEventListener('compositionstart', function () { composing = true; });
+  searchBox.addEventListener('compositionend', function () { composing = false; doSearch(); });
+  searchBox.addEventListener('input', function (e) { if (composing || e.isComposing) return; doSearch(); });
 
   // 按兩次才送出：先看一次明細
   sendBtn.addEventListener('click', function () {
@@ -236,6 +241,7 @@
         state.dues = r.dues || [];
         state.due = state.dues.length ? state.dues[0].value : '';
         state.recent = r.recent || [];
+        document.getElementById('searchWrap').hidden = state.items.length <= 8;
         document.getElementById('title').textContent = (r.customer ? r.customer + ' ' : '') + '下單';
         document.getElementById('subtitle').textContent = '選數量、選出貨日，按「送出」';
         render();
