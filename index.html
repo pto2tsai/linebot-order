@@ -52,6 +52,7 @@
   .tag { display: inline-block; font-size: 13px; padding: 1px 8px; border-radius: 99px; margin-top: 4px; }
   .tag.out { background: #fdeae6; color: var(--coral-d); }
   .tag.make { background: var(--beige); color: #7a5a44; }
+  .tag.badge { background: #e8f1fb; color: var(--blue); margin-right: 6px; }
   .qty { grid-area: qty; display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
   .qty button { width: 48px; height: 48px; border: 0; font-size: 26px; font-weight: 700; background: #fff; color: var(--blue); }
   .qty button.plus { background: var(--blue); color: #fff; }
@@ -110,6 +111,20 @@
     return state.items.filter(function (it) { return (state.qty[it.code] || 0) > 0; });
   }
 
+  function itemHtml(it) {
+    var q = state.qty[it.code] || 0;
+    var out = it.stock === '缺貨';
+    var tags = (it.badge ? '<span class="tag badge">' + esc(it.badge) + '</span>' : '')
+      + (out ? '<span class="tag out">缺貨</span>' : it.stock === '安排生產' ? '<span class="tag make">等待產出</span>' : '');
+    return '<div class="item' + (q ? ' on' : '') + (out ? ' off' : '') + '">'
+      + '<div class="name">' + esc(it.name) + '</div><div class="spec" title="' + esc(it.spec) + '">' + esc(it.spec) + '</div>'
+      + (tags ? '<div class="tagrow">' + tags + '</div>' : '')
+      + (out ? '' : '<div class="qty"><button class="minus" data-c="' + esc(it.code) + '" data-d="-1"' + (q ? '' : ' disabled') + ' aria-label="減少">−</button>'
+        + '<input inputmode="numeric" pattern="[0-9]*" data-c="' + esc(it.code) + '" value="' + (q || '') + '" placeholder="0" aria-label="數量">'
+        + '<button class="plus" data-c="' + esc(it.code) + '" data-d="1" aria-label="增加">＋</button></div>')
+      + '</div>';
+  }
+
   function render() {
     var f = state.filter.trim();
     var html = '';
@@ -122,23 +137,20 @@
         return '<button data-cat="' + esc(c === '全部' ? '' : c) + '" class="' + (on ? 'on' : '') + '">' + esc(c) + '</button>';
       }).join('') + '</div>';
     }
-    html += '<h2>您常買的品項</h2>';
+    // 常購（含幫這家加的「新增」）在上面，推薦品項另外一區（v0928-N）
     var shown = 0;
-    state.items.forEach(function (it) {
-      if (f && (it.name + it.spec).indexOf(f) === -1) return;
-      if (!f && state.cat && catOf(it) !== state.cat) return;   // 有打字搜尋就找全部，不管分類
-      shown++;
-      var q = state.qty[it.code] || 0;
-      var out = it.stock === '缺貨';
-      html += '<div class="item' + (q ? ' on' : '') + (out ? ' off' : '') + '">'
-        + '<div class="name">' + esc(it.name) + '</div><div class="spec" title="' + esc(it.spec) + '">' + esc(it.spec) + '</div>'
-        + (out ? '<div class="tagrow"><span class="tag out">缺貨</span></div>' : it.stock === '安排生產' ? '<div class="tagrow"><span class="tag make">等待產出</span></div>' : '')
-        + (out ? '' : '<div class="qty"><button class="minus" data-c="' + esc(it.code) + '" data-d="-1"' + (q ? '' : ' disabled') + ' aria-label="減少">−</button>'
-          + '<input inputmode="numeric" pattern="[0-9]*" data-c="' + esc(it.code) + '" value="' + (q || '') + '" placeholder="0" aria-label="數量">'
-          + '<button class="plus" data-c="' + esc(it.code) + '" data-d="1" aria-label="增加">＋</button></div>')
-        + '</div>';
+    [['usual', '您常買的品項'], ['rec', '⭐ 推薦品項']].forEach(function (sec) {
+      var part = '';
+      state.items.forEach(function (it) {
+        if ((it.sec || 'usual') !== sec[0]) return;
+        if (f && (it.name + it.spec).indexOf(f) === -1) return;
+        if (!f && state.cat && catOf(it) !== state.cat) return;   // 有打字搜尋就找全部，不管分類
+        shown++;
+        part += itemHtml(it);
+      });
+      if (part) html += '<h2>' + sec[1] + '</h2>' + part;
     });
-    if (!shown) html += '<div class="msg">' + (f ? '找不到「' + esc(f) + '」' : '還沒有常買的品項，請直接在群組打字下單') + '</div>';
+    if (!shown) html += '<div class="msg">' + (f ? '找不到「' + esc(f) + '」<br>清單上沒有的品項，請直接在群組打字' : '還沒有常買的品項，請直接在群組打字下單') + '</div>';
     html += '<h2>出貨日</h2><div class="dues">' + state.dues.map(function (d) {
       return '<button data-due="' + esc(d.value) + '" class="' + (d.value === state.due ? 'on' : '') + '">' + esc(d.label) + '</button>';
     }).join('') + '</div>';
