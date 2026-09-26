@@ -64,10 +64,10 @@
   .qty input { width: 56px; height: 48px; text-align: center; font-size: 20px; font-weight: 700; border: 0; border-left: 1px solid var(--line); border-right: 1px solid var(--line); border-radius: 0; color: var(--ink); }
   .unit { font-size: 14px; color: var(--sub); }
   /* 出貨日固定在上面（蔡阿博 9/27：不用滑到最下面才能選） */
-  /* 一排 5 天＋第 6 格自己指定日期（蔡阿博 9/27） */
-  .duebar { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 5px; padding: 6px 10px 8px; max-width: 640px; margin: 0 auto; }
+  /* 最近 4 天（截單前含今天）＋第 5 格自己指定日期（蔡阿博 9/27） */
+  .duebar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; padding: 6px 10px 8px; max-width: 640px; margin: 0 auto; }
   .duebar .lab { grid-column: 1 / -1; font-size: 13px; font-weight: 700; color: var(--sub); }
-  .duebar button, .duebar .pick { position: relative; min-width: 0; padding: 7px 0; font-size: 14px; line-height: 1.25; text-align: center; white-space: nowrap; border-radius: 10px; border: 2px solid var(--line); background: #fff; color: var(--ink); font-family: inherit; }
+  .duebar button, .duebar .pick { position: relative; min-width: 0; padding: 7px 0; font-size: 15px; line-height: 1.25; text-align: center; white-space: nowrap; border-radius: 10px; border: 2px solid var(--line); background: #fff; color: var(--ink); font-family: inherit; }
   .duebar .pick { border-style: dashed; color: var(--blue); font-weight: 700; }
   .duebar .pick.on { border-style: solid; border-color: var(--blue); background: #e8f1fb; color: var(--blue-d); }
   .duebar .pick.moved { border-style: solid; border-color: var(--coral); background: #fdeae6; color: var(--coral-d); }
@@ -151,7 +151,7 @@
     return Number(p[1]) + '/' + Number(p[2]) + '(' + WD.charAt(d.getDay()) + ')';
   }
   function inButtons(v) { return state.dues.some(function (d) { return d.value === v; }); }
-  /** 第 6 格自己選的日期：預設出貨日以後、不是不出貨的日子、60 天內 */
+  /** 最後一格自己選的日期：預設出貨日以後、不是不出貨的日子、60 天內 */
   function dueOk(v) {
     var r = state.range;
     if (!r || !/^\d{4}-\d{2}-\d{2}$/.test(v) || v < r.min || v > r.max) return false;
@@ -189,7 +189,7 @@
       return '<button data-due="' + esc(d.value) + '" class="' + ((isCur && !state.moveTo) ? 'on' : '') + (isTo ? ' on moved' : '') + (o ? ' has' : '') + '"'
         + (off ? ' disabled' : '') + '>' + esc(d.label) + (sub ? '<span class="was">' + esc(sub) + '</span>' : '') + '</button>';
     }).join('');
-    // 第 6 格：不在這 5 天的日期（自己選的、或是那天本來就有單）
+    // 最後一格：不在這 4 天的日期（自己選的、或是那天本來就有單）
     var v6 = state.moveTo && !inButtons(state.moveTo) ? state.moveTo : !inButtons(state.due) ? state.due : '';
     var cls = !v6 ? '' : v6 === state.moveTo ? ' moved' : state.moveTo ? '' : ' on';
     var r = state.range || {};
