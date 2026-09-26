@@ -28,6 +28,8 @@
   .chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 6px; margin-top: 10px; scrollbar-width: none; }
   .chips button { flex: none; padding: 8px 16px; font-size: 16px; border-radius: 99px; border: 1px solid var(--line); background: #fff; color: var(--ink); }
   .chips button.on { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 700; }
+  .chips button.rec { border-color: var(--coral); color: var(--coral-d); font-weight: 700; }
+  .chips button.rec.on { background: var(--coral); border-color: var(--coral); color: #fff; }
   textarea.note { width: 100%; min-height: 64px; font: inherit; font-size: 16px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #fff; resize: vertical; }
   .recent { background: #fff; border-radius: 14px; padding: 4px 14px; }
   .recent div { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 16px; }
@@ -90,6 +92,7 @@
   var state = { g: '', items: [], dues: [], due: '', qty: {}, filter: '', cat: '', note: '', recent: [] };
   // 分類：品名有這些字就歸這一類；兩類以上才顯示分類按鈕
   var CATS = [['白蝦', /白蝦/], ['草蝦', /草蝦/], ['透抽／小卷', /透抽|小卷|冰卷|中卷/], ['鮭魚', /鮭/], ['魷魚', /魷/], ['干貝／扇貝', /干貝|扇貝/], ['鯛魚', /鯛/]];
+  var REC = '⭐ 推薦';
   function catOf(it) { for (var i = 0; i < CATS.length; i++) if (CATS[i][1].test(it.name)) return CATS[i][0]; return '其他'; }
   var app = document.getElementById('app');
   var bar = document.getElementById('bar');
@@ -131,10 +134,12 @@
     var cats = [];
     state.items.forEach(function (it) { var c = catOf(it); if (cats.indexOf(c) === -1) cats.push(c); });
     cats.sort(function (a, b) { return (a === '其他') - (b === '其他'); });
-    if (state.items.length > 5 && cats.length > 1) {
-      html += '<div class="chips">' + ['全部'].concat(cats).map(function (c) {
+    // 有推薦品項就多一顆「⭐ 推薦」（蔡阿博 9/28：推薦也要能一鍵篩選）
+    var hasRec = state.items.some(function (it) { return it.sec === 'rec'; });
+    if ((state.items.length > 5 && cats.length > 1) || hasRec) {
+      html += '<div class="chips">' + ['全部'].concat(hasRec ? [REC] : []).concat(cats).map(function (c) {
         var on = (c === '全部' ? '' : c) === state.cat;
-        return '<button data-cat="' + esc(c === '全部' ? '' : c) + '" class="' + (on ? 'on' : '') + '">' + esc(c) + '</button>';
+        return '<button data-cat="' + esc(c === '全部' ? '' : c) + '" class="' + (on ? 'on' : '') + (c === REC ? ' rec' : '') + '">' + esc(c) + '</button>';
       }).join('') + '</div>';
     }
     // 常購（含幫這家加的「新增」）在上面，推薦品項另外一區（v0928-N）
@@ -144,7 +149,8 @@
       state.items.forEach(function (it) {
         if ((it.sec || 'usual') !== sec[0]) return;
         if (f && (it.name + it.spec).indexOf(f) === -1) return;
-        if (!f && state.cat && catOf(it) !== state.cat) return;   // 有打字搜尋就找全部，不管分類
+        if (!f && state.cat === REC && it.sec !== 'rec') return;
+        if (!f && state.cat && state.cat !== REC && catOf(it) !== state.cat) return;   // 有打字搜尋就找全部，不管分類
         shown++;
         part += itemHtml(it);
       });
