@@ -79,8 +79,10 @@
   .duebar button:disabled { opacity: .35; }
   .ordbox { background: #fff; border: 2px solid var(--blue); border-radius: 14px; padding: 12px 14px; margin: 4px 0 10px; font-size: 16px; }
   .ordbox .sub { color: var(--sub); font-size: 14px; margin-top: 2px; }
-  .ordbox .mv { margin-top: 8px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .ordbox button { padding: 8px 14px; font-size: 15px; border-radius: 10px; border: 1px solid var(--blue); background: #fff; color: var(--blue); font-weight: 700; }
+  .ordbox .top1 { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .ordbox .mv { margin-top: 8px; color: var(--coral-d); }
+  h2 .h2tip { float: right; font-size: 13px; font-weight: 400; color: var(--sub); margin-top: 2px; }
+  .ordbox button { flex: none; padding: 8px 14px; font-size: 15px; border-radius: 10px; border: 1px solid var(--blue); background: #fff; color: var(--blue); font-weight: 700; }
   .hist { background: #fff; border-radius: 14px; padding: 10px 14px; margin: 8px 0; }
   .hist.cur { border: 2px solid var(--blue); }
   .hist .hh { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
@@ -232,11 +234,12 @@
     var f = state.filter.trim();
     var html = '';
     if (o) {
-      html += '<div class="ordbox"><div><b>' + esc(dueLabel(state.due)) + ' 已經有單</b>' + (o.no ? '　單號 #' + esc(o.no) : '') + '</div>'
-        + '<div class="sub">改件數、減到 0＝不要了，也可以加新品項</div>'
-        + (state.moveTo ? '<div class="mv">出貨日改成 <b>' + esc(dueLabel(state.moveTo)) + '</b><button data-act="unmove">不改日期</button></div>'
-          : state.moving ? '<div class="mv">請點最上面要改到哪一天<button data-act="unmove">不改日期</button></div>'
-          : '<div class="mv"><button data-act="move">📅 改到別天</button></div>')
+      // 蔡阿博 9/27：說明放到「這天的品項」右邊；「改到別天」改叫「修改日期」
+      html += '<div class="ordbox"><div class="top1"><div><b>' + esc(dueLabel(state.due)) + ' 已經有單</b>'
+        + (o.no ? '<div class="sub">單號 #' + esc(o.no) + '</div>' : '') + '</div>'
+        + (state.moveTo || state.moving ? '<button data-act="unmove">不改日期</button>' : '<button data-act="move">📅 修改日期</button>') + '</div>'
+        + (state.moveTo ? '<div class="mv">出貨日改成 <b>' + esc(dueLabel(state.moveTo)) + '</b></div>'
+          : state.moving ? '<div class="mv">請點最上面要改到哪一天</div>' : '')
         + '</div>';
     }
     var cats = [];
@@ -263,7 +266,7 @@
         shown++;
         part += itemHtml(it);
       });
-      if (part) html += '<h2>' + sec[1] + '</h2>' + part;
+      if (part) html += '<h2>' + sec[1] + (sec[0] === 'order' ? '<span class="h2tip">改件數、減到 0＝不要了</span>' : '') + '</h2>' + part;
       if (sec[0] === 'order' && o && o.other && !f) html += '<div class="hint">這天還有 ' + o.other + ' 項業務確認中，要改請在群組打字</div>';
     });
     if (!shown) html += '<div class="msg">' + (f ? '找不到「' + esc(f) + '」<br>清單上沒有的品項，請直接在群組打字' : '還沒有常買的品項，請直接在群組打字下單') + '</div>';
