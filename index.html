@@ -132,7 +132,7 @@
       var out = it.stock === '缺貨';
       html += '<div class="item' + (q ? ' on' : '') + (out ? ' off' : '') + '">'
         + '<div class="name">' + esc(it.name) + '</div><div class="spec" title="' + esc(it.spec) + '">' + esc(it.spec) + '</div>'
-        + (out ? '<div class="tagrow"><span class="tag out">缺貨</span></div>' : it.stock === '安排生產' ? '<div class="tagrow"><span class="tag make">安排生產</span></div>' : '')
+        + (out ? '<div class="tagrow"><span class="tag out">缺貨</span></div>' : it.stock === '安排生產' ? '<div class="tagrow"><span class="tag make">等待產出</span></div>' : '')
         + (out ? '' : '<div class="qty"><button class="minus" data-c="' + esc(it.code) + '" data-d="-1"' + (q ? '' : ' disabled') + ' aria-label="減少">−</button>'
           + '<input inputmode="numeric" pattern="[0-9]*" data-c="' + esc(it.code) + '" value="' + (q || '') + '" placeholder="0" aria-label="數量">'
           + '<button class="plus" data-c="' + esc(it.code) + '" data-d="1" aria-label="增加">＋</button></div>')
