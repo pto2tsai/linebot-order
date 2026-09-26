@@ -4,7 +4,11 @@
 <meta charset="utf-8">
 <meta name="theme-color" content="#00408A">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>下單</title>
+<title>崇文海鮮 下單</title>
+<meta name="description" content="點開列出您常買的品項，選好數量按「送出」就好">
+<meta property="og:title" content="崇文海鮮 下單">
+<meta property="og:description" content="點開列出您常買的品項，選好數量按「送出」就好">
+<meta property="og:image" content="https://pto2tsai.github.io/linebot-order/mascot.png">
 <!--
   LINE 訂單助理的下單畫面（LIFF）。這個檔案沒有任何密碼或客戶資料：
   要連哪個後台（api）、哪個 LIFF（id）寫在 LINE Developers 的 Endpoint URL 後面，
@@ -69,9 +73,9 @@
 </style>
 </head>
 <body>
-<header><img src="logo.png" alt="崇文海鮮 WENS SEAFOOD"><div class="who"><h1 id="title">下單</h1><p id="subtitle">載入中…</p></div></header>
-<main id="app"><div class="msg">載入中…</div></main>
-<div class="bar" id="bar" hidden><button id="send" disabled>請選擇品項</button></div>
+<header><img src="logo.png" alt="崇文海鮮 WENS SEAFOOD"><div class="who"><h1 id="title">下單</h1><p id="subtitle"></p></div></header>
+<main id="app"><div class="msg">請稍等，正在讀取您常買的品項</div></main>
+<div class="bar" id="bar" hidden><button id="send" disabled></button></div>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
 <script>
 (function () {
