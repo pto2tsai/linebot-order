@@ -55,6 +55,10 @@
   .tag.out { background: #fdeae6; color: var(--coral-d); }
   .tag.make { background: var(--beige); color: #7a5a44; }
   .tag.badge { background: #e8f1fb; color: var(--blue); margin-right: 6px; }
+  .tag.was { background: #fff4d6; color: #8a6100; margin-right: 6px; }
+  .tag.drop { background: #fdeae6; color: var(--coral-d); margin-right: 6px; }
+  .item.gone { opacity: .6; }
+  .hint { font-size: 15px; color: var(--sub); padding: 4px 4px 0; }
   .qty { grid-area: qty; display: flex; align-items: stretch; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
   .qty button { width: 48px; height: 48px; border: 0; font-size: 26px; font-weight: 700; background: #fff; color: var(--blue); }
   .qty button.plus { background: var(--blue); color: #fff; }
@@ -89,7 +93,7 @@
   var params0 = new URLSearchParams(location.search);
   var API = params0.get('api') || '';
   var LIFF_ID = params0.get('id') || '';
-  var state = { g: '', items: [], dues: [], due: '', qty: {}, filter: '', cat: '', note: '', recent: [] };
+  var state = { g: '', items: [], dues: [], due: '', qty: {}, filter: '', cat: '', note: '', recent: [], edit: null, orig: {} };
   // 分類：品名有這些字就歸這一類；兩類以上才顯示分類按鈕
   var CATS = [['白蝦', /白蝦/], ['草蝦', /草蝦/], ['透抽／小卷', /透抽|小卷|冰卷|中卷/], ['鮭魚', /鮭/], ['魷魚', /魷/], ['干貝／扇貝', /干貝|扇貝/], ['鯛魚', /鯛/]];
   var REC = '⭐ 推薦';
@@ -114,12 +118,25 @@
     return state.items.filter(function (it) { return (state.qty[it.code] || 0) > 0; });
   }
 
+  // 修改畫面（v0928-O）：帶出這張單原本的件數；送出的是「有變的」
+  function loadOrig() {
+    var o = state.edit.orders.filter(function (x) { return x.due === state.due; })[0] || { items: {} };
+    state.orig = {}; state.qty = {};
+    Object.keys(o.items).forEach(function (c) { state.orig[c] = o.items[c]; state.qty[c] = o.items[c]; });
+  }
+  function changes() {
+    return state.items.map(function (it) { return { it: it, q: state.qty[it.code] || 0, cur: state.orig[it.code] || 0 }; })
+      .filter(function (x) { return x.q !== x.cur; });
+  }
+
   function itemHtml(it) {
     var q = state.qty[it.code] || 0;
-    var out = it.stock === '缺貨';
-    var tags = (it.badge ? '<span class="tag badge">' + esc(it.badge) + '</span>' : '')
+    var cur = state.edit ? (state.orig[it.code] || 0) : 0;
+    var out = it.stock === '缺貨' && !cur;   // 單上本來就有的，缺貨也能改少
+    var tags = (cur && !q ? '<span class="tag drop">不要了</span>' : cur && q !== cur ? '<span class="tag was">原本 ' + cur + esc(it.unit) + '</span>' : '')
+      + (it.badge ? '<span class="tag badge">' + esc(it.badge) + '</span>' : '')
       + (out ? '<span class="tag out">缺貨</span>' : it.stock === '安排生產' ? '<span class="tag make">等待產出</span>' : '');
-    return '<div class="item' + (q ? ' on' : '') + (out ? ' off' : '') + '">'
+    return '<div class="item' + (q ? ' on' : '') + (out ? ' off' : '') + (cur && !q ? ' gone' : '') + '">'
       + '<div class="name">' + esc(it.name) + '</div><div class="spec" title="' + esc(it.spec) + '">' + esc(it.spec) + '</div>'
       + (tags ? '<div class="tagrow">' + tags + '</div>' : '')
       + (out ? '' : '<div class="qty"><button class="minus" data-c="' + esc(it.code) + '" data-d="-1"' + (q ? '' : ' disabled') + ' aria-label="減少">−</button>'
@@ -144,10 +161,13 @@
     }
     // 常購（含幫這家加的「新增」）在上面，推薦品項另外一區（v0928-N）
     var shown = 0;
-    [['usual', '您常買的品項'], ['rec', '⭐ 推薦品項']].forEach(function (sec) {
+    var secs = [['usual', '您常買的品項'], ['rec', '⭐ 推薦品項']];
+    if (state.edit) secs.unshift(['order', '這張單的品項']);
+    secs.forEach(function (sec) {
       var part = '';
       state.items.forEach(function (it) {
-        if ((it.sec || 'usual') !== sec[0]) return;
+        var s = state.edit && state.orig[it.code] ? 'order' : (it.sec || 'usual');
+        if (s !== sec[0]) return;
         if (f && (it.name + it.spec).indexOf(f) === -1) return;
         if (!f && state.cat === REC && it.sec !== 'rec') return;
         if (!f && state.cat && state.cat !== REC && catOf(it) !== state.cat) return;   // 有打字搜尋就找全部，不管分類
@@ -155,11 +175,15 @@
         part += itemHtml(it);
       });
       if (part) html += '<h2>' + sec[1] + '</h2>' + part;
+      if (sec[0] === 'order' && state.edit.other && !f) html += '<div class="hint">這張單還有 ' + state.edit.other + ' 項，請在群組打字修改</div>';
     });
     if (!shown) html += '<div class="msg">' + (f ? '找不到「' + esc(f) + '」<br>清單上沒有的品項，請直接在群組打字' : '還沒有常買的品項，請直接在群組打字下單') + '</div>';
-    html += '<h2>出貨日</h2><div class="dues">' + state.dues.map(function (d) {
+    var dueBtns = '<div class="dues">' + state.dues.map(function (d) {
       return '<button data-due="' + esc(d.value) + '" class="' + (d.value === state.due ? 'on' : '') + '">' + esc(d.label) + '</button>';
     }).join('') + '</div>';
+    if (!state.edit) html += '<h2>出貨日</h2>' + dueBtns;
+    else if (state.dues.length > 1) html += '<h2>要改哪一天出貨的單</h2>' + dueBtns;
+    else html += '<h2>出貨日</h2><div class="hint">' + esc(state.dues.length ? state.dues[0].label : '') + '（要改出貨日，請在群組跟業務說）</div>';
     html += '<h2>備註（選填）</h2><textarea class="note" id="note" maxlength="100" placeholder="例如：特殊包裝、送貨時段…">' + esc(state.note) + '</textarea>';
     if (state.recent.length) {
       html += '<h2>最近訂單</h2><div class="recent">' + state.recent.map(function (o) {
@@ -172,6 +196,13 @@
   }
 
   function updateBar() {
+    if (state.edit) {
+      var k = changes().length;
+      bar.hidden = false;
+      sendBtn.disabled = !k;
+      sendBtn.textContent = k ? '送出修改（' + k + ' 項）' : '還沒有修改';
+      return;
+    }
     var n = picked().length;
     bar.hidden = false;
     sendBtn.disabled = !n;
@@ -181,7 +212,7 @@
   app.addEventListener('click', function (e) {
     var b = e.target.closest('button');
     if (!b) return;
-    if (b.dataset.due) { state.due = b.dataset.due; render(); return; }
+    if (b.dataset.due) { state.due = b.dataset.due; if (state.edit) loadOrig(); render(); return; }
     if (b.dataset.cat !== undefined) { state.cat = b.dataset.cat; render(); return; }
     var c = b.dataset.c;
     if (!c) return;
@@ -212,34 +243,40 @@
 
   // 按兩次才送出：先看一次明細
   sendBtn.addEventListener('click', function () {
-    var list = picked();
+    var edit = !!state.edit;
+    var list = edit ? changes() : picked();
     if (!list.length) return;
     var due = state.dues.filter(function (d) { return d.value === state.due; })[0];
     var mask = document.createElement('div');
     mask.className = 'mask';
-    mask.innerHTML = '<div class="sheet"><h3>確認訂單</h3><ol>' + list.map(function (it) {
-      return '<li>' + esc(it.name) + ' ' + esc(it.spec) + '　<b>' + state.qty[it.code] + esc(it.unit) + '</b></li>';
+    mask.innerHTML = '<div class="sheet"><h3>' + (edit ? '確認修改' : '確認訂單') + '</h3><ol>' + list.map(function (x) {
+      if (!edit) return '<li>' + esc(x.name) + ' ' + esc(x.spec) + '　<b>' + state.qty[x.code] + esc(x.unit) + '</b></li>';
+      var u = esc(x.it.unit);
+      var what = !x.q ? '<b style="color:#e35f4a">不要了</b>' : !x.cur ? '<b>' + x.q + u + '</b>（新增）' : x.cur + u + ' → <b>' + x.q + u + '</b>';
+      return '<li>' + esc(x.it.name) + ' ' + esc(x.it.spec) + '　' + what + '</li>';
     }).join('') + '</ol><div class="due">出貨日：' + esc(due ? due.label : '') + '</div>'
       + (state.note.trim() ? '<div class="due" style="font-weight:400">備註：' + esc(state.note.trim()) + '</div>' : '')
-      + '<button class="go" id="go">確定送出</button><button class="back" id="back">再改一下</button></div>';
+      + '<button class="go" id="go">' + (edit ? '確定修改' : '確定送出') + '</button><button class="back" id="back">再改一下</button></div>';
     document.body.appendChild(mask);
     document.getElementById('back').onclick = function () { mask.remove(); };
     mask.addEventListener('click', function (e) { if (e.target === mask) mask.remove(); });
     document.getElementById('go').onclick = function () {
       var go = this;
       go.disabled = true; go.textContent = '送出中…';
-      call({ liff: 'submit', due: state.due, note: state.note, items: list.map(function (it) { return { code: it.code, qty: state.qty[it.code] }; }) })
+      call({ liff: 'submit', mode: edit ? 'edit' : '', due: state.due, note: state.note, items: list.map(function (x) {
+        return edit ? { code: x.it.code, qty: x.q } : { code: x.code, qty: state.qty[x.code] };
+      }) })
         .then(function (r) {
           if (!r.ok) throw new Error(r.error || '送出失敗');
           return liff.sendMessages([{ type: 'text', text: r.text }]);
         })
         .then(function () {
           mask.remove(); bar.hidden = true;
-          show('<div class="done"><img src="mascot.png" alt="">✅ 訂單已送出！<br><span style="font-size:16px;font-weight:400;color:#5f6b7d">小幫手會在群組回覆確認</span></div>');
+          show('<div class="done"><img src="mascot.png" alt="">✅ ' + (edit ? '修改' : '訂單') + '已送出！<br><span style="font-size:16px;font-weight:400;color:#5f6b7d">小幫手會在群組回覆確認</span></div>');
           setTimeout(function () { try { liff.closeWindow(); } catch (e) {} }, 1200);
         })
         .catch(function (err) {
-          go.disabled = false; go.textContent = '確定送出';
+          go.disabled = false; go.textContent = edit ? '確定修改' : '確定送出';
           var m = String(err && err.message || err);
           if (/sendMessages|permission|context|chat/i.test(m) || (err && err.code)) m = '請從 LINE 群組裡的下單連結打開，才能把訂單傳到群組';
           alert(m);
@@ -251,17 +288,26 @@
     if (!API || !LIFF_ID || typeof liff === 'undefined') { fail('下單畫面設定不完整，請跟業務說'); return; }
     liff.init({ liffId: LIFF_ID }).then(function () {
       if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
-      state.g = new URLSearchParams(location.search).get('g') || '';
+      var qs = new URLSearchParams(location.search);
+      state.g = qs.get('g') || '';
+      var mode = qs.get('m') === 'edit' ? 'edit' : '';
       if (!state.g) { fail('請從 LINE 群組裡的下單連結打開'); return; }
-      return call({ liff: 'list' }).then(function (r) {
+      return call({ liff: 'list', mode: mode }).then(function (r) {
         if (!r.ok) { fail(r.error || '讀不到資料'); return; }
         state.items = r.items || [];
-        state.dues = r.dues || [];
-        state.due = state.dues.length ? state.dues[0].value : '';
         state.recent = r.recent || [];
+        if (mode && r.edit) {
+          state.edit = r.edit;
+          state.dues = r.edit.orders.map(function (o) { return { value: o.due, label: o.label }; });
+          state.due = state.dues.length ? state.dues[0].value : '';
+          loadOrig();
+        } else {
+          state.dues = r.dues || [];
+          state.due = state.dues.length ? state.dues[0].value : '';
+        }
         document.getElementById('searchWrap').hidden = state.items.length <= 8;
-        document.getElementById('title').textContent = (r.customer ? r.customer + ' ' : '') + '下單';
-        document.getElementById('subtitle').textContent = '選數量、選出貨日，按「送出」';
+        document.getElementById('title').textContent = (r.customer ? r.customer + ' ' : '') + (state.edit ? '修改訂單' : '下單');
+        document.getElementById('subtitle').textContent = state.edit ? '按 ＋－ 改件數，減到 0 就是不要這一項' : '選數量、選出貨日，按「送出」';
         render();
       });
     }).catch(function (err) { fail('打不開：' + (err && err.message || err) + '，請關掉重新打開'); });
