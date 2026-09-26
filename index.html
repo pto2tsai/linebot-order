@@ -124,6 +124,10 @@
     state.orig = {}; state.qty = {};
     Object.keys(o.items).forEach(function (c) { state.orig[c] = o.items[c]; state.qty[c] = o.items[c]; });
   }
+  function orderNo() {
+    var o = state.edit && state.edit.orders.filter(function (x) { return x.due === state.due; })[0];
+    return o && o.no || '';
+  }
   function changes() {
     return state.items.map(function (it) { return { it: it, q: state.qty[it.code] || 0, cur: state.orig[it.code] || 0 }; })
       .filter(function (x) { return x.q !== x.cur; });
@@ -184,6 +188,7 @@
     if (!state.edit) html += '<h2>出貨日</h2>' + dueBtns;
     else if (state.dues.length > 1) html += '<h2>要改哪一天出貨的單</h2>' + dueBtns;
     else html += '<h2>出貨日</h2><div class="hint">' + esc(state.dues.length ? state.dues[0].label : '') + '（要改出貨日，請在群組跟業務說）</div>';
+    if (state.edit && orderNo()) html += '<div class="hint">單號 #' + esc(orderNo()) + '</div>';
     html += '<h2>備註（選填）</h2><textarea class="note" id="note" maxlength="100" placeholder="例如：特殊包裝、送貨時段…">' + esc(state.note) + '</textarea>';
     if (state.recent.length) {
       html += '<h2>最近訂單</h2><div class="recent">' + state.recent.map(function (o) {
@@ -249,7 +254,7 @@
     var due = state.dues.filter(function (d) { return d.value === state.due; })[0];
     var mask = document.createElement('div');
     mask.className = 'mask';
-    mask.innerHTML = '<div class="sheet"><h3>' + (edit ? '確認修改' : '確認訂單') + '</h3><ol>' + list.map(function (x) {
+    mask.innerHTML = '<div class="sheet"><h3>' + (edit ? '確認修改' + (orderNo() ? ' #' + esc(orderNo()) : '') : '確認訂單') + '</h3><ol>' + list.map(function (x) {
       if (!edit) return '<li>' + esc(x.name) + ' ' + esc(x.spec) + '　<b>' + state.qty[x.code] + esc(x.unit) + '</b></li>';
       var u = esc(x.it.unit);
       var what = !x.q ? '<b style="color:#e35f4a">不要了</b>' : !x.cur ? '<b>' + x.q + u + '</b>（新增）' : x.cur + u + ' → <b>' + x.q + u + '</b>';
