@@ -26,7 +26,12 @@
   header .who { min-width: 0; }
   header h1 { margin: 0; font-size: 19px; color: var(--blue-d); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   header p { margin: 1px 0 0; font-size: 13px; color: var(--sub); }
+  /* 🔍 搜尋和篩選鍵同一排（蔡阿博 9/27） */
+  .toolrow { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .toolrow .search { flex: 0 0 34%; min-width: 0; font-size: 16px; padding: 9px 10px; border-radius: 99px; }
+  .toolrow .chips { flex: 1; min-width: 0; margin-top: 0; }
   .chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 6px; margin-top: 10px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
   .chips button { flex: none; padding: 8px 16px; font-size: 16px; border-radius: 99px; border: 1px solid var(--line); background: #fff; color: var(--ink); }
   .chips button.on { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 700; }
   .chips button.rec { border-color: var(--coral); color: var(--coral-d); font-weight: 700; }
@@ -114,7 +119,7 @@
 <body>
 <div class="top"><header><img src="logo.png" alt="崇文海鮮 WENS SEAFOOD"><div class="who"><h1 id="title">下單</h1><p id="subtitle"></p></div></header>
 <div class="duebar" id="dueBar" hidden></div></div>
-<main><div id="searchWrap" hidden><input class="search" id="search" type="search" placeholder="🔍 找品名" autocomplete="off" enterkeyhint="search"></div>
+<main><div class="toolrow" id="searchWrap" hidden><input class="search" id="search" type="search" placeholder="🔍 找品項" autocomplete="off" enterkeyhint="search"><div class="chips" id="chips"></div></div>
 <div id="app"><div class="msg">請稍等，正在讀取您常買的品項</div></div></main>
 <div class="bar" id="bar" hidden><button id="send" disabled></button></div>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
@@ -174,11 +179,18 @@
 
   /** 選出貨日：那天有單就帶出原本的件數 */
   function select(due, ask) {
-    if (ask && due !== state.due && dirty() && !confirm('剛剛改的還沒送出，換到別天會清掉，確定嗎？')) return;
-    state.due = due; state.moveTo = ''; state.note = '';
+    // 下新單時換日期：選好的品項留著（蔡阿博 9/27：換日期不要清掉）；換到已經有單的那天 → 問要不要加進那天的單
+    var keep = {};
+    if (ask && !cur() && due !== state.due) {
+      picked().forEach(function (it) { keep[it.code] = state.qty[it.code]; });
+      if (Object.keys(keep).length && orderOf(due) && !confirm(dueLabel(due) + ' 已經有單了，剛選的品項要加進那天的單嗎？')) return;
+    } else if (ask && due !== state.due && dirty() && !confirm('剛剛改的還沒送出，換到別天會清掉，確定嗎？')) return;
+    state.due = due; state.moveTo = '';
+    if (!Object.keys(keep).length) state.note = '';
     state.orig = {}; state.qty = {};
     var o = cur();
     if (o) Object.keys(o.items).forEach(function (c) { state.orig[c] = o.items[c]; state.qty[c] = o.items[c]; });
+    Object.keys(keep).forEach(function (c) { state.qty[c] = Math.min(9999, (state.qty[c] || 0) + keep[c]); });
     render();
   }
 
@@ -275,23 +287,24 @@
         + (state.moveTo ? '<button data-act="unmove">不改日期</button>' : '<span class="tip">改日期：點上面日期</span>') + '</div></div>';
     }
     var cats = [];
-    state.items.forEach(function (it) { var c = catOf(it); if (cats.indexOf(c) === -1) cats.push(c); });
+    state.items.forEach(function (it) { if (it.sec === 'old') return; var c = catOf(it); if (cats.indexOf(c) === -1) cats.push(c); });
     cats.sort(function (a, b) { return (a === '其他') - (b === '其他'); });
     // 有推薦品項就多一顆「⭐ 推薦」（蔡阿博 9/28：推薦也要能一鍵篩選）
     var hasRec = state.items.some(function (it) { return it.sec === 'rec'; });
-    if ((state.items.length > 5 && cats.length > 1) || hasRec) {
-      html += '<div class="chips">' + ['全部'].concat(hasRec ? [REC] : []).concat(cats).map(function (c) {
-        var on = (c === '全部' ? '' : c) === state.cat;
-        return '<button data-cat="' + esc(c === '全部' ? '' : c) + '" class="' + (on ? 'on' : '') + (c === REC ? ' rec' : '') + '">' + esc(c) + '</button>';
-      }).join('') + '</div>';
-    }
+    var chips = document.getElementById('chips');
+    var chipsHtml = ['全部'].concat(hasRec ? [REC] : []).concat(cats.length > 1 ? cats : []).map(function (c) {
+      var on = !f && (c === '全部' ? '' : c) === state.cat;
+      return '<button data-cat="' + esc(c === '全部' ? '' : c) + '" class="' + (on ? 'on' : '') + (c === REC ? ' rec' : '') + '">' + esc(c) + '</button>';
+    }).join('');
+    if (chips.innerHTML !== chipsHtml) chips.innerHTML = chipsHtml;   // 沒變就不重畫（捲到一半不會跳回去）
     // 這天的品項在最上面，再來常購（含「新增」）、推薦品項（v0928-N）
     var shown = 0;
-    [['order', '這天的品項'], ['usual', '您常買的品項'], ['rec', '⭐ 推薦品項']].forEach(function (sec) {
+    [['order', '這天的品項'], ['usual', '您常買的品項'], ['rec', '⭐ 推薦品項'], ['old', '以前買過']].forEach(function (sec) {
       var part = '';
       state.items.forEach(function (it) {
         var sc = state.orig[it.code] ? 'order' : (it.sec || 'usual');
         if (sc !== sec[0]) return;
+        if (sc === 'old' && !f && !state.qty[it.code]) return;   // 以前買過的：搜尋時才出現（選了就留著）
         if (f && (it.name + it.spec).indexOf(f) === -1) return;
         if (!f && state.cat === REC && it.sec !== 'rec') return;
         if (!f && state.cat && state.cat !== REC && catOf(it) !== state.cat) return;   // 有打字搜尋就找全部，不管分類
@@ -301,7 +314,7 @@
       if (part) html += '<h2>' + sec[1] + (sec[0] === 'order' ? '<span class="h2tip">改件數、減到 0＝不要了</span>' : '') + '</h2>' + part;
       if (sec[0] === 'order' && o && o.other && !f) html += '<div class="hint">這天還有 ' + o.other + ' 項業務確認中，要改請在群組打字</div>';
     });
-    if (!shown) html += '<div class="msg">' + (f ? '找不到「' + esc(f) + '」<br>清單上沒有的品項，請直接在群組打字' : '還沒有常買的品項，請直接在群組打字下單') + '</div>';
+    if (!shown) html += '<div class="msg">' + (f ? '找不到「' + esc(f) + '」<br>沒買過的品項，請直接在群組打字' : '還沒有常買的品項，請直接在群組打字下單') + '</div>';
     html += '<h2>備註（選填）</h2><textarea class="note" id="note" maxlength="100" placeholder="例如：特殊包裝、送貨時段…">' + esc(state.note) + '</textarea>';
     html += historyHtml();
     show(html);
@@ -343,6 +356,14 @@
     var c = b.dataset.c;
     if (!c) return;
     state.qty[c] = Math.max(0, Math.min(9999, (state.qty[c] || 0) + Number(b.dataset.d)));
+    render();
+  });
+  // 篩選鍵在搜尋框旁邊：點了就清掉搜尋字
+  document.getElementById('chips').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (!b || b.dataset.cat === undefined) return;
+    state.cat = b.dataset.cat;
+    if (searchBox.value) { searchBox.value = ''; state.filter = ''; }
     render();
   });
   app.addEventListener('input', function (e) {
@@ -426,7 +447,7 @@
         state.range = r.range || null;
         state.orders = r.orders || [];
         state.history = r.history || [];
-        document.getElementById('searchWrap').hidden = state.items.length <= 8;
+        document.getElementById('searchWrap').hidden = false;
         document.getElementById('title').textContent = (r.customer ? r.customer + ' ' : '') + '下單';
         // 按〔修改〕進來 → 選最近下的那張；一般 → 最近的出貨日（那天有單就帶出來）
         var first = qs.get('m') === 'edit' && r.latest ? r.latest : (state.dues.length ? state.dues[0].value : '');
