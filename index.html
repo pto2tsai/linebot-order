@@ -222,12 +222,28 @@
   }
   function fail(text) { bar.hidden = true; dueBar.hidden = true; document.getElementById('searchWrap').hidden = true; document.getElementById('subtitle').textContent = ''; show(shrimp('sweat', '糟糕！', esc(text))); }
 
+  function idExpired() {
+    try { var t = liff.getDecodedIDToken(); return !t || !t.exp || t.exp * 1000 < Date.now() + 60000; } catch (e) { return true; }
+  }
+  /** 重新登入：同一次打開只試一次，避免一直轉圈 */
+  function relogin() {
+    var k = 'relogin:' + location.search;
+    try { if (sessionStorage.getItem(k)) return false; sessionStorage.setItem(k, '1'); } catch (e) { return false; }
+    try { liff.logout(); } catch (e) { }
+    liff.login({ redirectUri: location.href });
+    return true;
+  }
   function call(body) {
     body.idToken = liff.getIDToken();
     body.g = state.g;
     // 用 text/plain 送，Apps Script 才不會擋（不會多一次預檢）
     return fetch(API, { method: 'POST', body: JSON.stringify(body) })
-      .then(function (r) { return r.json(); });
+      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        if (r && !r.ok && /登入失敗/.test(r.error || '') && !liff.isInClient() && relogin()) return new Promise(function () { });   // 轉去登入，畫面停在讀取中
+        if (r && r.ok) { try { sessionStorage.removeItem('relogin:' + location.search); } catch (e) { } }   // 登入好了，下次過期還可以再自動登入
+        return r;
+      });
   }
 
   function orderOf(due) { return state.orders.filter(function (o) { return o.due === due; })[0] || null; }
@@ -657,6 +673,9 @@
     if (!API || !LIFF_ID || typeof liff === 'undefined') { fail('下單畫面設定不完整，請跟業務說'); return; }
     liff.init({ liffId: LIFF_ID }).then(function () {
       if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
+      // 用 Safari、Chrome、電腦打開（不是在 LINE 裡）：上次登入的身分證 1 小時就過期，LINE 不會自己換新
+      // → 過期了就自動重新登入一次（9/27 蔡阿博用 Safari 開看板「登入失敗」）
+      if (!liff.isInClient() && idExpired()) { relogin(); return; }
       var qs = new URLSearchParams(location.search);
       if (qs.get('view') === 'dash') { startDash(); return; }   // 主管看板（v0929-P）
       state.g = qs.get('g') || '';
