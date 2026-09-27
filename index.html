@@ -19,6 +19,7 @@
   :root { --blue:#0057B8; --blue-d:#00408A; --blue-l:#1C74DD; --coral:#F6745F; --coral-d:#e35f4a; --beige:#EEDFD5;
     --bg:#F7F9FC; --card:#fff; --ink:#0E1726; --sub:#5f6b7d; --line:#dfe5ee; }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
   html, body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.45 -apple-system, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif; }
   .top { position: sticky; top: 0; z-index: 5; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.06); }
   header { background: #fff; color: var(--ink); padding: 10px 16px 10px; border-bottom: 3px solid var(--blue); display: flex; align-items: center; gap: 12px; }
@@ -103,7 +104,17 @@
   .hist .hl span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .hist .hl b { flex: none; }
   .hist .sub { color: var(--sub); }
-  .bar { position: fixed; left: 0; right: 0; bottom: 0; background: #fff; border-top: 1px solid var(--line); padding: 10px 12px calc(10px + env(safe-area-inset-bottom)); z-index: 6; }
+  .bar { position: fixed; left: 0; right: 0; bottom: calc(58px + env(safe-area-inset-bottom)); background: #fff; border-top: 1px solid var(--line); padding: 8px 12px; z-index: 6; }
+  /* 下方導航列（蔡阿博 9/27：歷史訂單放最下面找不到）：下單／待出貨／歷史訂單 */
+  .nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 7; background: #fff; border-top: 1px solid var(--line); display: flex; padding-bottom: env(safe-area-inset-bottom); }
+  .nav button { flex: 1; height: 58px; border: 0; background: none; font-size: 15px; font-weight: 700; color: var(--sub); font-family: inherit; line-height: 1.2; position: relative; }
+  .nav button .ic { display: block; font-size: 22px; }
+  .nav button.on { color: var(--blue); }
+  .nav button.on::before { content: ''; position: absolute; left: 20%; right: 20%; top: 0; height: 3px; background: var(--blue); border-radius: 0 0 3px 3px; }
+  .nav .cnt { position: absolute; top: 5px; left: 58%; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 99px; background: var(--coral); color: #fff; font-size: 12px; line-height: 20px; }
+  main.tabbed { padding-bottom: 190px; }
+  .hist .again { padding: 6px 12px; font-size: 14px; border-radius: 10px; border: 1px solid var(--blue); background: #fff; color: var(--blue); font-weight: 700; }
+  .empty { text-align: center; padding: 40px 16px; color: var(--sub); }
   .bar button, .sheet .go { width: 100%; max-width: 640px; display: block; margin: 0 auto; height: 56px; border: 0; border-radius: 14px; font-size: 20px; font-weight: 700; background: var(--coral); color: #fff; }
   .bar button:disabled { background: #c9ccd1; }
   .mask { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 10; display: flex; align-items: flex-end; }
@@ -123,6 +134,7 @@
 <main>
 <div id="app"><div class="msg">請稍等，正在讀取您常買的品項</div></div></main>
 <div class="bar" id="bar" hidden><button id="send" disabled></button></div>
+<nav class="nav" id="nav" hidden><button data-tab="order" class="on"><span class="ic">🛒</span>下單</button><button data-tab="pending"><span class="ic">🚚</span>待出貨</button><button data-tab="history"><span class="ic">📋</span>歷史訂單</button></nav>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
 <script>
 (function () {
@@ -132,7 +144,7 @@
   var API = params0.get('api') || '';
   var LIFF_ID = params0.get('id') || '';
   var state = { g: '', items: [], dues: [], range: null, earliest: '', orders: [], history: [], due: '', moveTo: '',
-    qty: {}, orig: {}, filter: '', cat: '', note: '' };
+    qty: {}, orig: {}, filter: '', cat: '', note: '', tab: 'order' };
   // 分類：品名有這些字就歸這一類；兩類以上才顯示分類按鈕
   var CATS = [['白蝦', /白蝦/], ['草蝦', /草蝦/], ['透抽／小卷', /透抽|小卷|冰卷|中卷/], ['鮭魚', /鮭/], ['魷魚', /魷/], ['干貝／扇貝', /干貝|扇貝/], ['鯛魚', /鯛/]];
   var REC = '⭐ 推薦';
@@ -202,7 +214,7 @@
       picked().forEach(function (it) { keep[it.code] = state.qty[it.code]; });
       if (Object.keys(keep).length && orderOf(due) && !confirm(dueLabel(due) + ' 已經有單了，剛選的品項要加進那天的單嗎？')) return;
     } else if (ask && due !== state.due && dirty() && !confirm('剛剛改的還沒送出，換到別天會清掉，確定嗎？')) return;
-    state.due = due; state.moveTo = '';
+    state.due = due; state.moveTo = ''; state.againFrom = '';
     if (!Object.keys(keep).length) state.note = '';
     state.orig = {}; state.qty = {};
     var o = cur();
@@ -278,16 +290,62 @@
       + '</div>';
   }
 
-  function historyHtml() {
-    if (!state.history.length) return '';
-    return '<h2>歷史訂單</h2>' + state.history.map(function (o) {
-      return '<div class="hist' + (o.due === state.due ? ' cur' : '') + '"><div class="hh"><b>' + esc(o.label) + ' 到</b>'
-        + (o.no ? '<span class="no">#' + esc(o.no) + '</span>' : '')
-        + '<span class="st ' + (o.shipped ? 'ship' : 'wait') + '">' + (o.shipped ? '已出貨' : '處理中') + '</span>'
-        + (o.editable && o.due !== state.due ? '<button class="go2" data-pick="' + esc(o.due) + '">改這張</button>' : '') + '</div>'
-        + o.lines.map(function (x) { return '<div class="hl"><span>' + esc(x.name) + ' ' + esc(x.spec) + '</span><b>' + x.qty + esc(x.unit) + '</b></div>'; }).join('')
-        + (o.other ? '<div class="hl sub">另有 ' + o.other + ' 項業務確認中</div>' : '') + '</div>';
-    }).join('');
+  function todayStr() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+  /** 待出貨：還沒出貨、到貨日還沒過的（含只有業務確認中品項的那天） */
+  function pendingList() {
+    var t = todayStr(), seen = {}, out = [];
+    state.history.forEach(function (o) { if (!o.shipped && o.due >= t) { seen[o.due] = 1; out.push(o); } });
+    state.orders.forEach(function (o) { if (!seen[o.due]) out.push({ due: o.due, label: o.label, no: o.no, lines: [], other: o.other, editable: true }); });
+    return out.sort(function (a, b) { return a.due < b.due ? -1 : 1; });
+  }
+  function cardHtml(o, mode) {
+    var btn = mode === 'pending'
+      ? (o.editable ? '<button class="go2" data-pick="' + esc(o.due) + '">修改</button>' : '')
+      : (o.lines.length ? '<button class="again" data-again="' + esc(o.due) + '">再訂一次</button>' : '');
+    return '<div class="hist"><div class="hh"><b>' + esc(o.label) + ' 到</b>'
+      + (o.no ? '<span class="no">#' + esc(o.no) + '</span>' : '')
+      + '<span class="st ' + (o.shipped ? 'ship' : 'wait') + '">' + (o.shipped ? '已出貨' : '處理中') + '</span>' + btn + '</div>'
+      + o.lines.map(function (x) { return '<div class="hl"><span>' + esc(x.name) + ' ' + esc(x.spec) + '</span><b>' + x.qty + esc(x.unit) + '</b></div>'; }).join('')
+      + (o.other ? '<div class="hl sub">另有 ' + o.other + ' 項業務確認中</div>' : '')
+      + (mode === 'pending' && !o.editable ? '<div class="hl sub">已過截單時間，要改請在群組打字</div>' : '') + '</div>';
+  }
+  function renderTab() {
+    var nav = document.getElementById('nav');
+    nav.hidden = false;
+    var pend = pendingList();
+    Array.prototype.forEach.call(nav.querySelectorAll('button'), function (b) {
+      b.classList.toggle('on', b.dataset.tab === state.tab);
+      if (b.dataset.tab === 'pending') {
+        var c = b.querySelector('.cnt');
+        if (pend.length) { if (!c) { c = document.createElement('span'); c.className = 'cnt'; b.appendChild(c); } c.textContent = pend.length; }
+        else if (c) c.remove();
+      }
+    });
+    var ordering = state.tab === 'order';
+    dueBar.hidden = !ordering || !state.dues.length;
+    document.getElementById('searchWrap').hidden = !ordering;
+    bar.hidden = !ordering;
+    if (ordering) { render(); return; }
+    document.getElementById('subtitle').textContent = state.tab === 'pending' ? '還沒出貨的單，點「修改」可以改' : '這個月和上個月的單，點「再訂一次」帶入品項';
+    if (state.tab === 'pending') show(pend.length ? pend.map(function (o) { return cardHtml(o, 'pending'); }).join('') : '<div class="empty">目前沒有待出貨的單</div>');
+    else show(state.history.length ? state.history.map(function (o) { return cardHtml(o, 'history'); }).join('') : '<div class="empty">這個月和上個月還沒有訂單</div>');
+  }
+  function goTab(t) { state.tab = t; renderTab(); window.scrollTo(0, 0); }
+  /** 再訂一次（攤販：跟上次一樣就好）：選一天還沒有單的、帶入上次的件數，自己看過再送出 */
+  function orderAgain(due) {
+    var h = state.history.filter(function (o) { return o.due === due; })[0];
+    if (!h) return;
+    var free = state.dues.filter(function (d) { return (!state.earliest || d.value >= state.earliest) && !orderOf(d.value); })[0];
+    if (!free) { alert('最近幾天都已經有單了，請到「待出貨」修改那天的單'); return; }
+    state.tab = 'order';
+    select(free.value, false);
+    var has = {}, miss = 0;
+    state.items.forEach(function (it) { has[it.code] = 1; });
+    h.lines.forEach(function (x) { if (has[x.code]) state.qty[x.code] = x.qty; else miss++; });
+    state.againFrom = h.label;
+    renderTab();
+    window.scrollTo(0, 0);
+    if (miss) alert('有 ' + miss + ' 項現在沒辦法用這裡下（缺貨或停售），其他已經帶入，請看過再送出');
   }
 
   function render() {
@@ -304,6 +362,7 @@
         + '</b>' + (o.no ? ' <span class="no">#' + esc(o.no) + '</span>' : '') + '</div>'
         + (state.moveTo ? '<button data-act="unmove">不改日期</button>' : '<span class="tip">改日期：點上面日期</span>') + '</div></div>';
     }
+    if (state.againFrom && !o) html += '<div class="ordbox">已帶入 ' + esc(state.againFrom) + ' 的品項<div class="sub">看過件數、到貨日，再按下面「送出」</div></div>';
     var cats = [];
     state.items.forEach(function (it) { if (it.sec === 'old') return; var c = catOf(it); if (cats.indexOf(c) === -1) cats.push(c); });
     cats.sort(function (a, b) { return (a === '其他') - (b === '其他'); });
@@ -334,7 +393,6 @@
     });
     if (!shown) html += '<div class="msg">' + (f ? '找不到「' + esc(f) + '」<br>沒買過的品項，請直接在群組打字' : '還沒有常買的品項，請直接在群組打字下單') + '</div>';
     html += '<h2>備註（選填）</h2><textarea class="note" id="note" maxlength="100" placeholder="例如：特殊包裝、送貨時段…">' + esc(state.note) + '</textarea>';
-    html += historyHtml();
     show(html);
     updateBar();
   }
@@ -353,6 +411,10 @@
     sendBtn.textContent = n ? '送出（' + n + ' 項，共 ' + totalText(afterList()) + '）' : '請選擇品項';
   }
 
+  document.getElementById('nav').addEventListener('click', function (e) {
+    var b = e.target.closest('button');
+    if (b && b.dataset.tab && b.dataset.tab !== state.tab) goTab(b.dataset.tab);
+  });
   dueBar.addEventListener('change', function (e) {
     var t = e.target;
     if (t.id !== 'pickDate' || !t.value) return;
@@ -368,7 +430,8 @@
   app.addEventListener('click', function (e) {
     var b = e.target.closest('button');
     if (!b) return;
-    if (b.dataset.pick) { select(b.dataset.pick, true); window.scrollTo(0, 0); return; }
+    if (b.dataset.pick) { state.tab = 'order'; select(b.dataset.pick, true); renderTab(); window.scrollTo(0, 0); return; }
+    if (b.dataset.again) { orderAgain(b.dataset.again); return; }
     if (b.dataset.act === 'unmove') { state.moveTo = ''; render(); return; }
     if (b.dataset.cat !== undefined) { state.cat = b.dataset.cat; render(); return; }
     var c = b.dataset.c;
@@ -440,7 +503,7 @@
           return liff.sendMessages([{ type: 'text', text: r.text }]);
         })
         .then(function () {
-          mask.remove(); bar.hidden = true; dueBar.hidden = true;
+          mask.remove(); bar.hidden = true; dueBar.hidden = true; document.getElementById('nav').hidden = true;
           show('<div class="done"><img src="mascot.png" alt="">✅ ' + (edit ? '修改' : '訂單') + '已送出！<br><span style="font-size:16px;font-weight:400;color:#5f6b7d">小幫手會在群組回覆確認</span></div>');
           setTimeout(function () { try { liff.closeWindow(); } catch (e) {} }, 1200);
         })
@@ -474,6 +537,8 @@
         var normal = state.dues.filter(function (d) { return !state.earliest || d.value >= state.earliest; })[0];
         var first = qs.get('m') === 'edit' && r.latest ? r.latest : (normal ? normal.value : (state.dues.length ? state.dues[0].value : ''));
         select(first, false);
+        document.querySelector('main').classList.add('tabbed');
+        renderTab();
       });
     }).catch(function (err) { fail('打不開：' + (err && err.message || err) + '，請關掉重新打開'); });
   }
