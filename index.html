@@ -141,6 +141,26 @@
   main.tabbed { padding-bottom: 190px; }
   .hist .again { padding: 6px 12px; font-size: 14px; border-radius: 10px; border: 1px solid var(--blue); background: #fff; color: var(--blue); font-weight: 700; }
   .empty { text-align: center; padding: 40px 16px; color: var(--sub); }
+  /* 蝦兄表情（IP 角色設計圖） */
+  .mood { text-align: center; padding: 28px 16px 20px; }
+  .mood .pic { position: relative; width: 150px; margin: 0 auto 10px; }
+  .mood .pic img { width: 150px; display: block; }
+  .mood .mt { font-size: 20px; font-weight: 700; color: var(--blue-d); }
+  .mood .ms { font-size: 15px; color: var(--sub); margin-top: 4px; }
+  .mood-stand img { animation: breathe 2.4s ease-in-out infinite; transform-origin: 50% 100%; }
+  .mood-sweat img { animation: panic .5s ease-in-out infinite; transform-origin: 50% 100%; }
+  .mood-sweat .mt { color: var(--coral-d); }
+  .mood-date img { animation: groove 1.6s ease-in-out infinite; transform-origin: 50% 100%; }
+  .mood-cheer img { animation: cheer .9s ease-out 3; transform-origin: 50% 100%; }
+  .mood-cheer .conf { position: absolute; left: 50%; top: 40%; }
+  .mood-cheer .conf i { position: absolute; width: 9px; height: 14px; border-radius: 2px; opacity: 0; animation: conf 1.1s ease-out var(--d) 2; }
+  .mood-cheer .conf i:nth-child(3n) { background: var(--coral); } .mood-cheer .conf i:nth-child(3n+1) { background: var(--blue); } .mood-cheer .conf i:nth-child(3n+2) { background: #f7c948; }
+  @keyframes breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.03, .97) translateY(1px); } }
+  @keyframes panic { 0%, 100% { transform: translateX(0) rotate(0); } 25% { transform: translateX(-5px) rotate(-3deg); } 75% { transform: translateX(5px) rotate(3deg); } }
+  @keyframes groove { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg) translateY(-4px); } }
+  @keyframes cheer { 0% { transform: translateY(0) scale(1.05, .95); } 40% { transform: translateY(-34px) scale(.97, 1.04); } 70% { transform: translateY(0) scale(1.06, .94); } 100% { transform: translateY(0) scale(1); } }
+  @keyframes conf { 0% { transform: rotate(var(--a)) translateY(0) rotate(0); opacity: 1; } 100% { transform: rotate(var(--a)) translateY(-110px) rotate(360deg); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .mood img, .mood .conf i { animation: none; } }
   /* 主管看板 */
   .dsum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 4px 0 8px; }
   .dbox { background: #fff; border-radius: 14px; padding: 10px 8px; text-align: center; border: 2px solid transparent; }
@@ -192,7 +212,13 @@
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function show(html) { app.innerHTML = html; }
-  function fail(text) { bar.hidden = true; dueBar.hidden = true; document.getElementById('searchWrap').hidden = true; document.getElementById('subtitle').textContent = ''; show('<div class="msg err">' + esc(text) + '</div>'); }
+  /** 蝦兄的各種表情（IP 角色設計圖，蔡阿博 9/27「你發揮創意」）：cheer 歡呼、sweat 流汗、date 約會去、stand 站好 */
+  function shrimp(kind, text, sub) {
+    var conf = kind === 'cheer' ? '<span class="conf">' + [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(function (i) { return '<i style="--a:' + (i * 36) + 'deg;--d:' + (i % 3) * 0.08 + 's"></i>'; }).join('') + '</span>' : '';
+    return '<div class="mood mood-' + kind + '"><div class="pic">' + conf + '<img src="shrimp-' + kind + '.png" alt=""></div>'
+      + '<div class="mt">' + text + '</div>' + (sub ? '<div class="ms">' + sub + '</div>' : '') + '</div>';
+  }
+  function fail(text) { bar.hidden = true; dueBar.hidden = true; document.getElementById('searchWrap').hidden = true; document.getElementById('subtitle').textContent = ''; show(shrimp('sweat', '糟糕！', esc(text))); }
 
   function call(body) {
     body.idToken = liff.getIDToken();
@@ -380,8 +406,8 @@
     bar.hidden = !ordering;
     if (ordering) { render(); return; }
     document.getElementById('subtitle').textContent = state.tab === 'pending' ? '還沒出貨的單，點「修改」可以改' : '點「再訂一次」帶入品項';
-    if (state.tab === 'pending') show(pend.length ? pend.map(function (o) { return cardHtml(o, 'pending'); }).join('') : '<div class="empty">目前沒有待出貨的單</div>');
-    else { var hl = historyList(); show(hl.length ? hl.map(function (o) { return cardHtml(o, 'history'); }).join('') : '<div class="empty">還沒有訂單</div>'); }
+    if (state.tab === 'pending') show(pend.length ? pend.map(function (o) { return cardHtml(o, 'pending'); }).join('') : shrimp('stand', '目前沒有待出貨的單', '要叫貨請點下面「下單」'));
+    else { var hl = historyList(); show(hl.length ? hl.map(function (o) { return cardHtml(o, 'history'); }).join('') : shrimp('stand', '還沒有訂單', '')); }
   }
   /** 歷史訂單：LINE 下的單＋銷貨單（蔡阿博 9/27：剛開始用的客人也看得到以前叫過什麼），新的在前 */
   function historyList() {
@@ -451,7 +477,7 @@
       if (part) html += '<h2>' + sec[1] + (sec[0] === 'order' ? '<span class="h2tip">改件數、減到 0＝不要了</span>' : '') + '</h2>' + part;
       if (sec[0] === 'order' && o && o.other && !f) html += '<div class="hint">這天還有 ' + o.other + ' 項業務確認中，要改請在群組打字</div>';
     });
-    if (!shown) html += '<div class="msg">' + (f ? '找不到「' + esc(f) + '」<br>沒買過的品項，請直接在群組打字' : '還沒有常買的品項，請直接在群組打字下單') + '</div>';
+    if (!shown) html += f ? shrimp('sweat', '找不到「' + esc(f) + '」', '沒買過的品項，請直接在群組打字') : shrimp('stand', '還沒有常買的品項', '請直接在群組打字下單');
     html += '<h2>備註（選填）</h2><textarea class="note" id="note" maxlength="100" placeholder="例如：特殊包裝、送貨時段…">' + esc(state.note) + '</textarea>';
     show(html);
     updateBar();
@@ -563,8 +589,8 @@
           return liff.sendMessages([{ type: 'text', text: r.text }]);
         })
         .then(function () {
-          mask.remove(); bar.hidden = true; dueBar.hidden = true; document.getElementById('nav').hidden = true;
-          show('<div class="done"><img src="mascot.png" alt="">✅ ' + (edit ? '修改' : '訂單') + '已送出！<br><span style="font-size:16px;font-weight:400;color:#5f6b7d">小幫手會在群組回覆確認</span></div>');
+          mask.remove(); bar.hidden = true; dueBar.hidden = true; document.getElementById('nav').hidden = true; document.getElementById('searchWrap').hidden = true;
+          show(shrimp('cheer', '✅ ' + (edit ? '修改' : '訂單') + '已送出！', '小幫手會在群組回覆確認'));
           setTimeout(function () { try { liff.closeWindow(); } catch (e) {} }, 1200);
         })
         .catch(function (err) {
@@ -599,7 +625,7 @@
       return '<div class="hist' + (x.stale ? ' dstale' : '') + '"><div class="hh"><b>' + esc(x.customer) + '</b><span class="st wait">' + esc(x.why) + '</span></div>'
         + '<div class="hl"><span>' + esc(x.name) + '</span><b>' + (x.qty ? x.qty + esc(x.unit) : '') + '</b></div>'
         + '<div class="hl sub"><span>' + esc(x.sales) + (x.arrive ? '・' + esc(x.arrive) + ' 到' : '') + '</span><span>' + esc(x.at) + '（' + (x.hours < 1 ? Math.round(x.hours * 60) + ' 分' : x.hours + ' 小時') + '前）</span></div></div>';
-    }).join('') : '<div class="empty">沒有要處理的 👍</div>';
+    }).join('') : shrimp('date', '都處理完了，蝦兄約會去！', '');
     // 每位業務
     h += '<h2>每位業務手上待處理的</h2>';
     h += r.sales.length ? '<div class="hist">' + r.sales.map(function (s0) {
