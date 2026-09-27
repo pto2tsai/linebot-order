@@ -619,7 +619,7 @@
     document.getElementById('subtitle').textContent = r.at + ' 更新';
     var stale = r.issues.filter(function (x) { return x.stale; }).length;
     var h = '<div class="dsum">'
-      + r.days.map(function (d, i) { return '<div class="dbox"><b>' + d.orders.length + ' 家</b><span>' + (i ? '明天' : '今天') + '出' + (d.total ? '・' + esc(d.total) : '') + '</span></div>'; }).join('')
+      + r.days.map(function (d, i) { return '<div class="dbox"><b>' + d.orders.length + ' 家</b><span>' + esc(d.title || d.label) + '出' + (d.total ? '・' + esc(d.total) : '') + '</span></div>'; }).join('')
       + '<div class="dbox' + (r.issues.length ? ' warn' : '') + '"><b>' + r.issues.length + ' 項</b><span>要處理' + (stale ? '・<em>' + stale + ' 項太久</em>' : '') + '</span></div></div>'
       + '<div class="dbtns"><button class="drefresh" id="dRefresh">重新整理</button><button class="drefresh' + (r.withTest ? ' on' : '') + '" id="dTest">' + (r.withTest ? '✓ 含測試群' : '顯示測試群') + '</button></div>';
     // 異常
@@ -636,7 +636,7 @@
     }).join('') + '</div>' : '<div class="empty">都處理完了</div>';
     // 今明兩天要出的單
     r.days.forEach(function (d, i) {
-      h += '<h2>' + (i ? '明天' : '今天') + ' ' + esc(d.label) + ' 要出的單' + (d.total ? '<span class="h2tip">共 ' + d.orders.length + ' 家・' + esc(d.total) + '</span>' : '') + '</h2>';
+      h += '<h2>' + (d.title ? d.title + ' ' : '') + esc(d.label) + ' 要出的單' + (d.total ? '<span class="h2tip">共 ' + d.orders.length + ' 家・' + esc(d.total) + '</span>' : '') + '</h2>';
       h += d.orders.length ? d.orders.map(function (o) {
         return '<div class="hist"><div class="hh"><b>' + esc(o.customer) + '</b><span class="no">' + esc(o.arrive) + ' 到・' + esc(o.sales) + '</span></div>'
           + o.lines.map(function (x) { return '<div class="hl"><span>' + esc(x.name) + '</span><b>' + x.qty + esc(x.unit) + '</b></div>'; }).join('')
