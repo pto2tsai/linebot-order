@@ -27,7 +27,7 @@
   header h1 { margin: 0; font-size: 19px; color: var(--blue-d); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   header p { margin: 1px 0 0; font-size: 13px; color: var(--sub); }
   /* 🔍 搜尋和篩選鍵同一排（蔡阿博 9/27） */
-  .toolrow { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+  .toolrow { display: flex; align-items: center; gap: 8px; padding: 0 10px 6px; max-width: 640px; margin: 0 auto; }
   .toolrow .search { flex: 0 0 34%; min-width: 0; font-size: 16px; padding: 9px 10px; border-radius: 99px; }
   .toolrow .chips { flex: 1; min-width: 0; margin-top: 0; }
   .chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 6px; margin-top: 10px; scrollbar-width: none; }
@@ -118,8 +118,9 @@
 </head>
 <body>
 <div class="top"><header><img src="logo.png" alt="崇文海鮮 WENS SEAFOOD"><div class="who"><h1 id="title">下單</h1><p id="subtitle"></p></div></header>
-<div class="duebar" id="dueBar" hidden></div></div>
-<main><div class="toolrow" id="searchWrap" hidden><input class="search" id="search" type="search" placeholder="🔍 找品項" autocomplete="off" enterkeyhint="search"><div class="chips" id="chips"></div></div>
+<div class="duebar" id="dueBar" hidden></div>
+<div class="toolrow" id="searchWrap" hidden><input class="search" id="search" type="search" placeholder="🔍 找品項" autocomplete="off" enterkeyhint="search"><div class="chips" id="chips"></div></div></div>
+<main>
 <div id="app"><div class="msg">請稍等，正在讀取您常買的品項</div></div></main>
 <div class="bar" id="bar" hidden><button id="send" disabled></button></div>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
@@ -365,6 +366,7 @@
     state.cat = b.dataset.cat;
     if (searchBox.value) { searchBox.value = ''; state.filter = ''; }
     render();
+    window.scrollTo(0, 0);   // 從清單最上面開始看
   });
   app.addEventListener('input', function (e) {
     var t = e.target;
