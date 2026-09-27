@@ -177,6 +177,21 @@
     return state.items.map(function (it) { return { it: it, q: state.qty[it.code] || 0, cur: state.orig[it.code] || 0 }; })
       .filter(function (x) { return x.q !== x.cur; });
   }
+  /** 總件數（蔡阿博 9/27：送出只有幾項，沒有總件數）：單位不同分開算，「25件」「20件、3箱」 */
+  function totalText(list) {
+    var by = {}, order = [];
+    list.forEach(function (x) {
+      if (!x.q) return;
+      var u = x.unit || '件';
+      if (!(u in by)) { by[u] = 0; order.push(u); }
+      by[u] += x.q;
+    });
+    return order.map(function (u) { return by[u] + u; }).join('、');
+  }
+  /** 送出後這天整張單（下新單＝選的；修改＝改好的整張） */
+  function afterList() {
+    return state.items.map(function (it) { return { unit: it.unit, q: state.qty[it.code] || 0 }; }).filter(function (x) { return x.q > 0; });
+  }
   function dirty() { return cur() ? changes().length > 0 || !!state.moveTo : picked().length > 0; }
 
   /** 選出貨日：那天有單就帶出原本的件數 */
@@ -335,7 +350,7 @@
     }
     var n = picked().length;
     sendBtn.disabled = !n;
-    sendBtn.textContent = n ? '送出（' + n + ' 項）' : '請選擇品項';
+    sendBtn.textContent = n ? '送出（' + n + ' 項，共 ' + totalText(afterList()) + '）' : '請選擇品項';
   }
 
   dueBar.addEventListener('change', function (e) {
@@ -406,7 +421,8 @@
       var u = esc(x.it.unit);
       var what = !x.q ? '<b style="color:#e35f4a">不要了</b>' : !x.cur ? '<b>' + x.q + u + '</b>（新增）' : x.cur + u + ' → <b>' + x.q + u + '</b>';
       return '<li>' + esc(x.it.name) + ' ' + esc(x.it.spec) + '　' + what + '</li>';
-    }).join('') + '</ol><div class="due">到貨日：' + esc(dueLabel(state.due))
+    }).join('') + '</ol>' + (function () { var a = afterList(); return a.length ? '<div class="due">' + (edit ? '改好後整張：' : '') + '共 ' + a.length + ' 項，' + esc(totalText(a)) + '</div>' : ''; })()
+      + '<div class="due">到貨日：' + esc(dueLabel(state.due))
       + (state.moveTo ? ' → <span style="color:#e35f4a">' + esc(dueLabel(state.moveTo)) + '</span>' : '') + '</div>'
       + (state.note.trim() ? '<div class="due" style="font-weight:400">備註：' + esc(state.note.trim()) + '</div>' : '')
       + '<button class="go" id="go">' + (edit ? '確定修改' : '確定送出') + '</button><button class="back" id="back">再改一下</button></div>';
