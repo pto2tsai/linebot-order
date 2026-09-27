@@ -635,7 +635,7 @@
     document.getElementById('subtitle').textContent = r.at + ' 更新';
     var stale = r.issues.filter(function (x) { return x.stale; }).length;
     var h = '<div class="dsum">'
-      + r.days.map(function (d, i) { return '<div class="dbox"><b>' + d.orders.length + ' 家</b><span>' + esc(d.title || d.label) + '出' + (d.total ? '・' + esc(d.total) : '') + '</span></div>'; }).join('')
+      + r.days.map(function (d, i) { return '<div class="dbox"><b>' + d.orders.length + ' 家</b><span>' + esc(d.title || d.label) + '出' + (d.total ? '<br>' + esc(d.total) : '') + '</span></div>'; }).join('')
       + '<div class="dbox' + (r.issues.length ? ' warn' : '') + '"><b>' + r.issues.length + ' 項</b><span>要處理' + (stale ? '・<em>' + stale + ' 項太久</em>' : '') + '</span></div></div>'
       + '<div class="dbtns"><button class="drefresh" id="dRefresh">重新整理</button><button class="drefresh' + (r.withTest ? ' on' : '') + '" id="dTest">' + (r.withTest ? '✓ 含測試群' : '顯示測試群') + '</button></div>';
     // 異常
