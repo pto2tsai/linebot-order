@@ -624,6 +624,10 @@
       + '<div class="dbtns"><button class="drefresh" id="dRefresh">重新整理</button><button class="drefresh' + (r.withTest ? ' on' : '') + '" id="dTest">' + (r.withTest ? '✓ 含測試群' : '顯示測試群') + '</button></div>';
     // 異常
     h += '<h2>要處理的（最久的在前）</h2>';
+    var auto = [];
+    if (r.doneAuto) auto.push('已開銷貨單 ' + r.doneAuto + ' 項');
+    if (r.expired) auto.push('到貨日已過 ' + r.expired + ' 項');
+    if (auto.length) h += '<div class="empty">自動拿掉：' + auto.join('、') + '</div>';
     h += r.issues.length ? r.issues.map(function (x) {
       return '<div class="hist' + (x.stale ? ' dstale' : '') + '"><div class="hh"><b>' + esc(x.customer) + '</b><span class="st wait">' + esc(x.why) + '</span></div>'
         + '<div class="hl"><span>' + esc(x.name) + '</span><b>' + (x.qty ? x.qty + esc(x.unit) : '') + '</b></div>'
