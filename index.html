@@ -346,9 +346,9 @@
     document.getElementById('searchWrap').hidden = !ordering;
     bar.hidden = !ordering;
     if (ordering) { render(); return; }
-    document.getElementById('subtitle').textContent = state.tab === 'pending' ? '還沒出貨的單，點「修改」可以改' : '這個月和上個月的單，點「再訂一次」帶入品項';
+    document.getElementById('subtitle').textContent = state.tab === 'pending' ? '還沒出貨的單，點「修改」可以改' : '點「再訂一次」帶入品項';
     if (state.tab === 'pending') show(pend.length ? pend.map(function (o) { return cardHtml(o, 'pending'); }).join('') : '<div class="empty">目前沒有待出貨的單</div>');
-    else { var hl = historyList(); show(hl.length ? hl.map(function (o) { return cardHtml(o, 'history'); }).join('') : '<div class="empty">這個月和上個月還沒有訂單</div>'); }
+    else { var hl = historyList(); show(hl.length ? hl.map(function (o) { return cardHtml(o, 'history'); }).join('') : '<div class="empty">還沒有訂單</div>'); }
   }
   /** 歷史訂單：LINE 下的單＋銷貨單（蔡阿博 9/27：剛開始用的客人也看得到以前叫過什麼），新的在前 */
   function historyList() {
