@@ -5,6 +5,15 @@
 <meta name="theme-color" content="#00408A">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>崇文海鮮 下單</title>
+<script>
+  // 主管看板加到手機桌面時用自己的圖示和名稱（9/28 蔡阿博）；客人的下單畫面不變
+  var qs0 = location.search; try { qs0 = decodeURIComponent(qs0); } catch (e) { }
+  if (/[?&]view=dash\b/.test(qs0)) {
+    document.title = '主管看板';
+    var ic = document.createElement('link'); ic.rel = 'apple-touch-icon'; ic.href = 'icon-dash.png';
+    document.head.appendChild(ic);
+  }
+</script>
 <meta name="description" content="點開列出您常買的品項，選好數量按「送出」就好">
 <meta property="og:title" content="崇文海鮮 下單">
 <meta property="og:description" content="點開列出您常買的品項，選好數量按「送出」就好">
