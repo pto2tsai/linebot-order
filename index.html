@@ -322,10 +322,10 @@
       + '<span class="st ' + (o.shipped || o.sale ? 'ship' : 'wait') + '">' + stageOf(o, mode) + '</span>' + btn + '</div>'
       + o.lines.map(function (x) {
         // 銷貨單有單價、金額就寫在品項下面（蔡阿博 9/27）
-        var money = x.amount !== undefined ? '<div class="hl money"><span>' + (x.price !== undefined ? '單價 ' + fmtMoney(x.price) : '') + '</span><span>' + fmtMoney(x.amount) + ' 元</span></div>' : '';
+        var money = x.amount !== undefined ? '<div class="hl money"><span>' + (x.price !== undefined ? '單價 ' + fmtMoney(x.price) + (x.priceUnit ? '/' + esc(x.priceUnit) : '') : '') + '</span><span>' + fmtMoney(x.amount) + ' 元</span></div>' : '';
         return '<div class="hl"><span>' + esc(x.name) + ' ' + esc(x.spec) + '</span><b>' + x.qty + esc(x.unit) + '</b></div>' + money;
       }).join('')
-      + (o.sale && o.lines.some(function (x) { return x.amount !== undefined; }) ? '<div class="hl total"><span>合計（以正式銷貨單為準）</span><b>' + fmtMoney(o.lines.reduce(function (a, x) { return a + (x.amount || 0); }, 0)) + ' 元</b></div>' : '')
+      + (o.sale && o.lines.some(function (x) { return x.amount !== undefined; }) ? '<div class="hl total"><span>合計（未稅，以正式銷貨單為準）</span><b>' + fmtMoney(o.lines.reduce(function (a, x) { return a + (x.amount || 0); }, 0)) + ' 元</b></div>' : '')
       + (o.other ? '<div class="hl sub">另有 ' + o.other + ' 項業務確認中</div>' : '')
       + (mode === 'pending' && !o.editable ? '<div class="hl sub">已經在備貨了，要改請在群組打字，業務會跟您確認</div>' : '') + '</div>';
   }
@@ -367,11 +367,12 @@
     select(free.value, false);
     var has = {}, miss = 0;
     state.items.forEach(function (it) { has[it.code] = 1; });
-    h.lines.forEach(function (x) { if (has[x.code]) state.qty[x.code] = x.qty; else miss++; });
+    // 銷貨單還沒有件數的（只有計價數量，例如 1200 盒）不帶數量，免得下錯（蔡阿博 9/27）
+    h.lines.forEach(function (x) { if (has[x.code] && (!h.sale || x.pcs)) state.qty[x.code] = x.qty; else miss++; });
     state.againFrom = h.label;
     renderTab();
     window.scrollTo(0, 0);
-    if (miss) alert('有 ' + miss + ' 項現在沒辦法用這裡下（缺貨或停售），其他已經帶入，請看過再送出');
+    if (miss) alert('有 ' + miss + ' 項沒有帶入（缺貨、停售或查不到件數），其他已經帶入，請看過再送出');
   }
 
   function render() {
