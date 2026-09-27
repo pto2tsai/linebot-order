@@ -104,11 +104,14 @@
   .hist .hl span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .hist .hl b { flex: none; }
   .hist .sub { color: var(--sub); }
+  .hist .hl.money { border-top: 0; padding-top: 0; font-size: 13px; color: var(--sub); }
+  .hist .hl.total { border-top: 1px solid var(--line); font-weight: 700; }
   .bar { position: fixed; left: 0; right: 0; bottom: calc(58px + env(safe-area-inset-bottom)); background: #fff; border-top: 1px solid var(--line); padding: 8px 12px; z-index: 6; }
   /* 下方導航列（蔡阿博 9/27：歷史訂單放最下面找不到）：下單／待出貨／歷史訂單 */
   .nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 7; background: #fff; border-top: 1px solid var(--line); display: flex; padding-bottom: env(safe-area-inset-bottom); }
   .nav button { flex: 1; height: 58px; border: 0; background: none; font-size: 15px; font-weight: 700; color: var(--sub); font-family: inherit; line-height: 1.2; position: relative; }
-  .nav button .ic { display: block; font-size: 22px; }
+  /* 線條圖示（蔡阿博 9/27：不要 emoji），顏色跟著字 */
+  .nav button .ic { display: block; width: 26px; height: 26px; margin: 0 auto 1px; }
   .nav button.on { color: var(--blue); }
   .nav button.on::before { content: ''; position: absolute; left: 20%; right: 20%; top: 0; height: 3px; background: var(--blue); border-radius: 0 0 3px 3px; }
   .nav .cnt { position: absolute; top: 5px; left: 58%; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 99px; background: var(--coral); color: #fff; font-size: 12px; line-height: 20px; }
@@ -134,7 +137,7 @@
 <main>
 <div id="app"><div class="msg">請稍等，正在讀取您常買的品項</div></div></main>
 <div class="bar" id="bar" hidden><button id="send" disabled></button></div>
-<nav class="nav" id="nav" hidden><button data-tab="order" class="on"><span class="ic">🛒</span>下單</button><button data-tab="pending"><span class="ic">🚚</span>待出貨</button><button data-tab="history"><span class="ic">📋</span>歷史訂單</button></nav>
+<nav class="nav" id="nav" hidden><button data-tab="order" class="on"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2.2l2.1 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.2"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/></svg>下單</button><button data-tab="pending"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.5h11v9h-11z"/><path d="M13.5 9.5h4l3 3.2v2.8h-7"/><circle cx="6.5" cy="17.5" r="1.7"/><circle cx="17" cy="17.5" r="1.7"/></svg>待出貨</button><button data-tab="history"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3.5" width="14" height="17" rx="2"/><path d="M9 3.5h6v2.5H9z"/><path d="M8.5 10.5h7M8.5 14h7M8.5 17.5h4"/></svg>歷史訂單</button></nav>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
 <script>
 (function () {
@@ -302,6 +305,12 @@
     state.orders.forEach(function (o) { if (!seen[o.due]) out.push({ due: o.due, label: o.label, no: o.no, lines: [], other: o.other, editable: true }); });
     return out.sort(function (a, b) { return a.due < b.due ? -1 : 1; });
   }
+  /** 出貨三階段（蔡阿博 9/27）：可修改 → 備貨中 → 已出貨 */
+  function fmtMoney(n) { return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  function stageOf(o, mode) {
+    if (o.shipped || o.sale) return '已出貨';
+    return o.editable ? '可修改' : '備貨中';
+  }
   function cardHtml(o, mode) {
     var btn = mode === 'pending'
       ? (o.editable ? '<button class="go2" data-pick="' + esc(o.due) + '">修改</button>' : '')
@@ -310,8 +319,13 @@
     var head = o.sale ? esc(o.label) + ' 出貨' : esc(o.label) + ' 到';
     return '<div class="hist"><div class="hh"><b>' + head + '</b>'
       + (o.sale ? '<span class="no">銷貨單</span>' : o.no ? '<span class="no">#' + esc(o.no) + '</span>' : '')
-      + '<span class="st ' + (o.shipped || o.sale ? 'ship' : 'wait') + '">' + (o.shipped || o.sale ? '已出貨' : '處理中') + '</span>' + btn + '</div>'
-      + o.lines.map(function (x) { return '<div class="hl"><span>' + esc(x.name) + ' ' + esc(x.spec) + '</span><b>' + x.qty + esc(x.unit) + '</b></div>'; }).join('')
+      + '<span class="st ' + (o.shipped || o.sale ? 'ship' : 'wait') + '">' + stageOf(o, mode) + '</span>' + btn + '</div>'
+      + o.lines.map(function (x) {
+        // 銷貨單有單價、金額就寫在品項下面（蔡阿博 9/27）
+        var money = x.amount !== undefined ? '<div class="hl money"><span>' + (x.price !== undefined ? '單價 ' + fmtMoney(x.price) : '') + '</span><span>' + fmtMoney(x.amount) + ' 元</span></div>' : '';
+        return '<div class="hl"><span>' + esc(x.name) + ' ' + esc(x.spec) + '</span><b>' + x.qty + esc(x.unit) + '</b></div>' + money;
+      }).join('')
+      + (o.sale && o.lines.some(function (x) { return x.amount !== undefined; }) ? '<div class="hl total"><span>合計（以正式銷貨單為準）</span><b>' + fmtMoney(o.lines.reduce(function (a, x) { return a + (x.amount || 0); }, 0)) + ' 元</b></div>' : '')
       + (o.other ? '<div class="hl sub">另有 ' + o.other + ' 項業務確認中</div>' : '')
       + (mode === 'pending' && !o.editable ? '<div class="hl sub">已經在備貨了，要改請在群組打字，業務會跟您確認</div>' : '') + '</div>';
   }
