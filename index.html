@@ -173,6 +173,18 @@
   .drefresh.on { background: #e8f1fb; border-color: var(--blue); }
   .hist.dstale { border: 2px solid var(--coral); background: #fff8f6; }
   .hist .hl.dwarn { color: var(--coral-d); }
+  /* 打單清單（v0929-AB） */
+  .dtabs { display: flex; gap: 8px; margin: 4px 0 10px; } .dtabs button { flex: 1; height: 44px; border-radius: 12px; border: 2px solid var(--blue); background: #fff; color: var(--blue); font-size: 16px; font-weight: 700; font-family: inherit; }
+  .dtabs button.on { background: var(--blue); color: #fff; }
+  .ktip { font-size: 13px; color: var(--sub); margin: 0 4px 6px; line-height: 1.5; }
+  .kline { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px dashed var(--line); }
+  .kline .kc { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 16px; font-weight: 700; color: var(--blue-d); padding: 6px 10px; border: 1px solid var(--blue); border-radius: 10px; background: #f3f8fe; }
+  .kline .kc.ok { background: var(--blue); color: #fff; }
+  .kline .kn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; color: var(--sub); }
+  .kline .kq { font-size: 18px; font-weight: 800; }
+  .kdone { margin-left: auto; padding: 6px 12px; font-size: 14px; border-radius: 10px; border: 1px solid var(--blue); background: #fff; color: var(--blue); font-weight: 700; font-family: inherit; }
+  .hist.kd { opacity: .5; } .hist.kd .kline { display: none; } .hist.kd .kdone { background: var(--blue); color: #fff; }
+  .kchg { color: var(--coral-d); font-size: 14px; font-weight: 700; padding: 4px 0; }
   .bar button, .sheet .go { width: 100%; max-width: 640px; display: block; margin: 0 auto; height: 56px; border: 0; border-radius: 14px; font-size: 20px; font-weight: 700; background: var(--coral); color: #fff; }
   .bar button:disabled { background: #c9ccd1; }
   .mask { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 10; display: flex; align-items: flex-end; }
@@ -621,6 +633,8 @@
   });
 
   /***** 主管看板（v0929-P，蔡阿博 9/27）：異常、每位業務待處理、今明兩天要出的單。只給業務名單上的人 *****/
+  var dashView = 'dash';   // 看板／打單清單（v0929-AB）
+  try { dashView = localStorage.getItem('dashView') || 'dash'; } catch (e) { }
   var dashTest = false;   // 顯示測試群（9/27：用測試群下單要在看板看得到）
   function startDash() {
     document.getElementById('title').textContent = '主管看板';
@@ -633,8 +647,14 @@
   }
   function renderDash(r) {
     document.getElementById('subtitle').textContent = r.at + ' 更新';
+    var tabs = '<div class="dtabs"><button id="tDash"' + (dashView === 'dash' ? ' class="on"' : '') + '>看板</button><button id="tKey"' + (dashView === 'key' ? ' class="on"' : '') + '>打單清單' + (r.keyin && r.keyin.length ? '（' + r.keyin.length + '）' : '') + '</button></div>';
+    var bindTabs = function () {
+      document.getElementById('tDash').onclick = function () { dashView = 'dash'; try { localStorage.setItem('dashView', 'dash'); } catch (e) { } renderDash(r); };
+      document.getElementById('tKey').onclick = function () { dashView = 'key'; try { localStorage.setItem('dashView', 'key'); } catch (e) { } renderDash(r); };
+    };
+    if (dashView === 'key') { renderKeyin(r, tabs); bindTabs(); return; }
     var stale = r.issues.filter(function (x) { return x.stale; }).length;
-    var h = '<div class="dsum">'
+    var h = tabs + '<div class="dsum">'
       + r.days.map(function (d, i) { return '<div class="dbox"><b>' + d.orders.length + ' 家</b><span>' + esc(d.title || d.label) + '出' + (d.total ? '<br>' + esc(d.total) : '') + '</span></div>'; }).join('')
       + '<div class="dbox' + (r.issues.length ? ' warn' : '') + '"><b>' + r.issues.length + ' 項</b><span>要處理' + (stale ? '・<em>' + stale + ' 項太久</em>' : '') + '</span></div></div>'
       + '<div class="dbtns"><button class="drefresh" id="dRefresh">重新整理</button><button class="drefresh' + (r.withTest ? ' on' : '') + '" id="dTest">' + (r.withTest ? '✓ 含測試群' : '顯示測試群') + '</button></div>';
@@ -667,6 +687,60 @@
     show(h);
     document.getElementById('dRefresh').onclick = startDash;
     document.getElementById('dTest').onclick = function () { dashTest = !dashTest; startDash(); };
+    bindTabs();
+  }
+  /** 打單清單：還沒出貨的 LINE 訂單，列鼎新品號、數量；按品號複製，打完按「已打」（記在這支手機／電腦）。打完客人又改 → 提醒 */
+  function keyinKey(o) { return 'keyin:' + o.day + '|' + o.customer; }
+  function keyinSnap(o) { var m = {}; o.lines.forEach(function (x) { m[x.code] = x.qty; }); return m; }
+  function keyinDiff(o, saved) {
+    var cur = keyinSnap(o), out = [];
+    o.lines.forEach(function (x) { if (!(x.code in saved)) out.push(x.name + ' 新加 ' + x.qty + x.unit); else if (saved[x.code] !== x.qty) out.push(x.name + ' ' + saved[x.code] + ' → ' + x.qty + x.unit); });
+    Object.keys(saved).forEach(function (c) { if (!(c in cur)) out.push(c + ' 取消'); });
+    return out;
+  }
+  function renderKeyin(r, tabs) {
+    var list = r.keyin || [];
+    var h = tabs + '<div class="ktip">還沒出貨的 LINE 訂單。在電腦打開，按<b>品號</b>就複製，貼到鼎新受訂單的品號欄；整張打完按「已打」。</div>';
+    h += '<div class="dbtns"><button class="drefresh" id="dRefresh">重新整理</button><button class="drefresh' + (r.withTest ? ' on' : '') + '" id="dTest">' + (r.withTest ? '✓ 含測試群' : '顯示測試群') + '</button></div>';
+    if (!list.length) h += shrimp('date', '沒有要打的單', '');
+    list.forEach(function (o, i) {
+      var saved = null;
+      try { saved = JSON.parse(localStorage.getItem(keyinKey(o)) || 'null'); } catch (e) { saved = null; }
+      var diff = saved ? keyinDiff(o, saved) : [];
+      var done = saved && !diff.length;
+      h += '<div class="hist' + (done ? ' kd' : '') + '" data-i="' + i + '"><div class="hh"><b>' + esc(o.customer) + '</b>'
+        + '<span class="no">' + esc(o.label) + ' 出・' + esc(o.arrive) + ' 到</span><button class="kdone" data-i="' + i + '">' + (done ? '✓ 已打' : '已打') + '</button></div>'
+        + '<div class="hl sub"><span>鼎新客戶：' + esc(o.erp || o.customer) + (o.nos.length ? '・#' + esc(o.nos.join('、#')) : '') + '</span><span>' + esc(o.sales) + (o.at ? '・' + esc(o.at) : '') + '</span></div>'
+        + (diff.length ? '<div class="kchg">⚠ 打完之後客人改過：' + esc(diff.join('、')) + '</div>' : '')
+        + o.lines.map(function (x) {
+          return '<div class="kline"><button class="kc" data-c="' + esc(x.code) + '">' + esc(x.code) + '</button><span class="kn">' + esc(x.name) + '</span><span class="kq">' + x.qty + esc(x.unit) + '</span></div>';
+        }).join('') + '</div>';
+    });
+    show(h);
+    document.getElementById('dRefresh').onclick = startDash;
+    document.getElementById('dTest').onclick = function () { dashTest = !dashTest; startDash(); };
+    Array.prototype.forEach.call(document.querySelectorAll('.kc'), function (b) {
+      b.onclick = function () { copyText(b.getAttribute('data-c')).then(function () { b.classList.add('ok'); b.textContent = '已複製'; setTimeout(function () { b.textContent = b.getAttribute('data-c'); }, 900); }); };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.kdone'), function (b) {
+      b.onclick = function () {
+        var o = list[Number(b.getAttribute('data-i'))], k = keyinKey(o);
+        var saved = null;
+        try { saved = JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { }
+        try { if (saved && !keyinDiff(o, saved).length) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(keyinSnap(o))); } catch (e) { }
+        renderDash(r);
+      };
+    });
+  }
+  function copyText(t) {
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(t).catch(function () { return copyOld(t); });
+    return Promise.resolve(copyOld(t));
+  }
+  function copyOld(t) {
+    var a = document.createElement('textarea'); a.value = t; a.style.position = 'fixed'; a.style.opacity = '0';
+    document.body.appendChild(a); a.select();
+    try { document.execCommand('copy'); } catch (e) { }
+    document.body.removeChild(a);
   }
 
   function start() {
