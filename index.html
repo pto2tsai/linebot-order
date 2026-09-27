@@ -131,7 +131,7 @@
   var params0 = new URLSearchParams(location.search);
   var API = params0.get('api') || '';
   var LIFF_ID = params0.get('id') || '';
-  var state = { g: '', items: [], dues: [], range: null, orders: [], history: [], due: '', moveTo: '',
+  var state = { g: '', items: [], dues: [], range: null, earliest: '', orders: [], history: [], due: '', moveTo: '',
     qty: {}, orig: {}, filter: '', cat: '', note: '' };
   // 分類：品名有這些字就歸這一類；兩類以上才顯示分類按鈕
   var CATS = [['白蝦', /白蝦/], ['草蝦', /草蝦/], ['透抽／小卷', /透抽|小卷|冰卷|中卷/], ['鮭魚', /鮭/], ['魷魚', /魷/], ['干貝／扇貝', /干貝|扇貝/], ['鯛魚', /鯛/]];
@@ -198,7 +198,8 @@
 
   function subOf(v) {
     var o = orderOf(v);
-    return v === state.moveTo ? '改到這天' : (v === state.due && state.moveTo) ? '原本' : o ? '已下' + Object.keys(o.items).length + '項' : '';
+    return v === state.moveTo ? '改到這天' : (v === state.due && state.moveTo) ? '原本' : o ? '已下' + Object.keys(o.items).length + '項'
+      : (state.earliest && v < state.earliest) ? '需確認' : '';   // 比平常最快的早：業務會聯絡確認（v0929-A）
   }
   function renderDues() {
     dueBar.hidden = !state.dues.length;
@@ -448,12 +449,14 @@
         state.items = r.items || [];
         state.dues = r.dues || [];
         state.range = r.range || null;
+        state.earliest = r.earliest || '';
         state.orders = r.orders || [];
         state.history = r.history || [];
         document.getElementById('searchWrap').hidden = false;
         document.getElementById('title').textContent = (r.customer ? r.customer + ' ' : '') + '下單';
         // 按〔修改〕進來 → 選最近下的那張；一般 → 最近的出貨日（那天有單就帶出來）
-        var first = qs.get('m') === 'edit' && r.latest ? r.latest : (state.dues.length ? state.dues[0].value : '');
+        var normal = state.dues.filter(function (d) { return !state.earliest || d.value >= state.earliest; })[0];
+        var first = qs.get('m') === 'edit' && r.latest ? r.latest : (normal ? normal.value : (state.dues.length ? state.dues[0].value : ''));
         select(first, false);
       });
     }).catch(function (err) { fail('打不開：' + (err && err.message || err) + '，請關掉重新打開'); });
