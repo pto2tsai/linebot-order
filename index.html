@@ -44,6 +44,9 @@
   .done img { width: 150px; height: auto; display: block; margin: 0 auto 16px; }
   main { padding: 12px 12px 120px; max-width: 640px; margin: 0 auto; }
   .msg { text-align: center; padding: 48px 16px; color: var(--sub); }
+  /* 讀取中轉圈圈（蔡阿博 9/27：超過 4 秒以為當機） */
+  .spin { width: 36px; height: 36px; margin: 0 auto 14px; border: 4px solid var(--line); border-top-color: var(--blue); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .msg.err { color: var(--coral-d); }
   h2 { font-size: 15px; color: var(--sub); margin: 18px 4px 8px; font-weight: 600; }
   .search { width: 100%; font-size: 17px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
@@ -145,7 +148,7 @@
 <div class="duebar" id="dueBar" hidden></div>
 <div class="toolrow" id="searchWrap" hidden><input class="search" id="search" type="search" placeholder="🔍 找品項" autocomplete="off" enterkeyhint="search"><div class="chips" id="chips"></div></div></div>
 <main>
-<div id="app"><div class="msg">請稍等，正在讀取您常買的品項</div></div></main>
+<div id="app"><div class="msg"><div class="spin"></div>正在讀取您常買的品項…<br><span style="font-size:14px">大約 3～5 秒</span></div></div></main>
 <div class="bar" id="bar" hidden><button id="send" disabled></button></div>
 <nav class="nav" id="nav" hidden><button data-tab="order" class="on"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2.2l2.1 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.2"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/></svg>下單</button><button data-tab="pending"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.5h11v9h-11z"/><path d="M13.5 9.5h4l3 3.2v2.8h-7"/><circle cx="6.5" cy="17.5" r="1.7"/><circle cx="17" cy="17.5" r="1.7"/></svg>待出貨</button><button data-tab="history"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3.5" width="14" height="17" rx="2"/><path d="M9 3.5h6v2.5H9z"/><path d="M8.5 10.5h7M8.5 14h7M8.5 17.5h4"/></svg>歷史訂單</button></nav>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
@@ -557,7 +560,7 @@
   function startDash() {
     document.getElementById('title').textContent = '主管看板';
     document.getElementById('subtitle').textContent = '讀取中…';
-    show('<div class="msg">請稍等，正在整理</div>');
+    show('<div class="msg"><div class="spin"></div>請稍等，正在整理</div>');
     call({ liff: 'dash' }).then(function (r) {
       if (!r.ok) { fail(r.error || '讀不到資料'); return; }
       renderDash(r);
