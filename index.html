@@ -169,6 +169,8 @@
   .dbox.warn { border-color: var(--coral); }
   .dbox.warn b, .dbox em, .dred { color: var(--coral-d); font-style: normal; }
   .drefresh { width: 100%; height: 40px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--blue); font-size: 15px; font-weight: 700; font-family: inherit; }
+  .dbtns { display: flex; gap: 8px; } .dbtns .drefresh { flex: 1; }
+  .drefresh.on { background: #e8f1fb; border-color: var(--blue); }
   .hist.dstale { border: 2px solid var(--coral); background: #fff8f6; }
   .hist .hl.dwarn { color: var(--coral-d); }
   .bar button, .sheet .go { width: 100%; max-width: 640px; display: block; margin: 0 auto; height: 56px; border: 0; border-radius: 14px; font-size: 20px; font-weight: 700; background: var(--coral); color: #fff; }
@@ -603,11 +605,12 @@
   });
 
   /***** 主管看板（v0929-P，蔡阿博 9/27）：異常、每位業務待處理、今明兩天要出的單。只給業務名單上的人 *****/
+  var dashTest = false;   // 顯示測試群（9/27：用測試群下單要在看板看得到）
   function startDash() {
     document.getElementById('title').textContent = '主管看板';
     document.getElementById('subtitle').textContent = '讀取中…';
     show('<div class="load"><div class="stage"><div class="road"></div><div class="lane"></div><span class="wind w1"></span><span class="wind w2"></span><span class="wind w3"></span><span class="wind w4"></span><div class="ride"><div class="jump"><img class="rider" src="rider.png" alt="蝦兄騎車送貨中"></div></div></div><div class="t">正在整理<i>…</i></div><div class="sm"></div></div>');
-    call({ liff: 'dash' }).then(function (r) {
+    call({ liff: 'dash', test: dashTest }).then(function (r) {
       if (!r.ok) { fail(r.error || '讀不到資料'); return; }
       renderDash(r);
     }).catch(function (err) { fail('讀不到：' + (err && err.message || err)); });
@@ -618,7 +621,7 @@
     var h = '<div class="dsum">'
       + r.days.map(function (d, i) { return '<div class="dbox"><b>' + d.orders.length + ' 家</b><span>' + (i ? '明天' : '今天') + '出' + (d.total ? '・' + esc(d.total) : '') + '</span></div>'; }).join('')
       + '<div class="dbox' + (r.issues.length ? ' warn' : '') + '"><b>' + r.issues.length + ' 項</b><span>要處理' + (stale ? '・<em>' + stale + ' 項太久</em>' : '') + '</span></div></div>'
-      + '<button class="drefresh" id="dRefresh">重新整理</button>';
+      + '<div class="dbtns"><button class="drefresh" id="dRefresh">重新整理</button><button class="drefresh' + (r.withTest ? ' on' : '') + '" id="dTest">' + (r.withTest ? '✓ 含測試群' : '顯示測試群') + '</button></div>';
     // 異常
     h += '<h2>要處理的（最久的在前）</h2>';
     h += r.issues.length ? r.issues.map(function (x) {
@@ -643,6 +646,7 @@
     });
     show(h);
     document.getElementById('dRefresh').onclick = startDash;
+    document.getElementById('dTest').onclick = function () { dashTest = !dashTest; startDash(); };
   }
 
   function start() {
