@@ -45,6 +45,8 @@
   .item { background: var(--card); border-radius: 14px; padding: 10px 12px 10px 14px; margin: 8px 0; border: 2px solid transparent;
     display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name qty" "spec spec" "tag tag"; column-gap: 10px; align-items: center; }
   .item.on { border-color: var(--blue); }
+  /* 修改時改過、新加的品項換珊瑚色框（蔡阿博 9/27：方便識別） */
+  .item.chg { border-color: var(--coral); background: #fff8f6; }
   .item.off { opacity: .55; }
     .name { grid-area: name; font-weight: 700; font-size: 18px; line-height: 1.3; }
   .spec { grid-area: spec; color: var(--sub); font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
@@ -82,6 +84,8 @@
   .ordbox .top1 { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .ordbox .no { color: var(--sub); font-size: 14px; }
   .ordbox .to { color: var(--coral-d); }
+  .ordbox .tip { flex: none; font-size: 13px; color: var(--sub); white-space: nowrap; }
+  .sheet .alt { width: 100%; max-width: 640px; display: block; margin: 10px auto 0; height: 52px; border: 2px solid var(--blue); border-radius: 14px; background: #fff; font-size: 18px; font-weight: 700; color: var(--blue); }
   h2 .h2tip { float: right; font-size: 13px; font-weight: 400; color: var(--sub); margin-top: 2px; }
   .ordbox button { flex: none; padding: 8px 14px; font-size: 15px; border-radius: 10px; border: 1px solid var(--blue); background: #fff; color: var(--blue); font-weight: 700; }
   .hist { background: #fff; border-radius: 14px; padding: 10px 14px; margin: 8px 0; }
@@ -121,7 +125,7 @@
   var params0 = new URLSearchParams(location.search);
   var API = params0.get('api') || '';
   var LIFF_ID = params0.get('id') || '';
-  var state = { g: '', items: [], dues: [], range: null, orders: [], history: [], due: '', moveTo: '', moving: false,
+  var state = { g: '', items: [], dues: [], range: null, orders: [], history: [], due: '', moveTo: '',
     qty: {}, orig: {}, filter: '', cat: '', note: '' };
   // 分類：品名有這些字就歸這一類；兩類以上才顯示分類按鈕
   var CATS = [['白蝦', /白蝦/], ['草蝦', /草蝦/], ['透抽／小卷', /透抽|小卷|冰卷|中卷/], ['鮭魚', /鮭/], ['魷魚', /魷/], ['干貝／扇貝', /干貝|扇貝/], ['鯛魚', /鯛/]];
@@ -171,7 +175,7 @@
   /** 選出貨日：那天有單就帶出原本的件數 */
   function select(due, ask) {
     if (ask && due !== state.due && dirty() && !confirm('剛剛改的還沒送出，換到別天會清掉，確定嗎？')) return;
-    state.due = due; state.moveTo = ''; state.moving = false; state.note = '';
+    state.due = due; state.moveTo = ''; state.note = '';
     state.orig = {}; state.qty = {};
     var o = cur();
     if (o) Object.keys(o.items).forEach(function (c) { state.orig[c] = o.items[c]; state.qty[c] = o.items[c]; });
@@ -184,13 +188,12 @@
   }
   function renderDues() {
     dueBar.hidden = !state.dues.length;
-    var html = '<span class="lab">' + (state.moving ? '要改到哪一天？（點一下）' : '出貨日') + '</span>' + state.dues.map(function (d) {
+    var html = '<span class="lab">' + '出貨日' + '</span>' + state.dues.map(function (d) {
       var o = orderOf(d.value);
       var isCur = d.value === state.due, isTo = d.value === state.moveTo;
-      var off = state.moving && (!!o || isCur);   // 已經有單的那天不能搬過去
       var sub = subOf(d.value);
       return '<button data-due="' + esc(d.value) + '" class="' + ((isCur && !state.moveTo) ? 'on' : '') + (isTo ? ' on moved' : '') + (o ? ' has' : '') + '"'
-        + (off ? ' disabled' : '') + '>' + esc(d.label) + (sub ? '<span class="was">' + esc(sub) + '</span>' : '') + '</button>';
+        + '>' + esc(d.label) + (sub ? '<span class="was">' + esc(sub) + '</span>' : '') + '</button>';
     }).join('');
     // 最後一格：不在這 4 天的日期（自己選的、或是那天本來就有單）
     var v6 = state.moveTo && !inButtons(state.moveTo) ? state.moveTo : !inButtons(state.due) ? state.due : '';
@@ -201,6 +204,34 @@
     dueBar.innerHTML = html;
   }
 
+  function itemCls(code) {
+    var q = state.qty[code] || 0, c0 = state.orig[code] || 0;
+    return (q ? ' on' : '') + (cur() && q && q !== c0 ? ' chg' : '') + (c0 && !q ? ' gone' : '');
+  }
+
+  /** 點日期（蔡阿博 9/27：改件數後點別天＝一起改日期，不要清掉） */
+  function goDate(v) {
+    var o = cur();
+    if (o && v === state.due) { if (state.moveTo) { state.moveTo = ''; render(); } return; }   // 點回原本那天＝不改日期
+    if (!o || orderOf(v)) { select(v, true); return; }
+    if (v === state.moveTo) return;
+    askMove(v);
+  }
+  function askMove(v) {
+    var mask = document.createElement('div');
+    mask.className = 'mask';
+    mask.innerHTML = '<div class="sheet"><h3>' + esc(dueLabel(v)) + ' 要怎麼做？</h3>'
+      + '<button class="go" id="mvGo">把 ' + esc(dueLabel(state.due)) + ' 的單改到這天</button>'
+      + (dirty() ? '<div class="hint" style="text-align:center">剛改的件數會一起保留</div>' : '')
+      + '<button class="alt" id="mvNew">這天另外下一張新單</button>'
+      + '<button class="back" id="mvNo">取消</button></div>';
+    document.body.appendChild(mask);
+    document.getElementById('mvGo').onclick = function () { mask.remove(); state.moveTo = v; render(); };
+    document.getElementById('mvNew').onclick = function () { mask.remove(); select(v, true); };
+    document.getElementById('mvNo').onclick = function () { mask.remove(); renderDues(); };
+    mask.addEventListener('click', function (e) { if (e.target === mask) { mask.remove(); renderDues(); } });
+  }
+
   function itemHtml(it) {
     var q = state.qty[it.code] || 0;
     var c0 = state.orig[it.code] || 0;
@@ -208,7 +239,7 @@
     var tags = (c0 && !q ? '<span class="tag drop">不要了</span>' : c0 && q !== c0 ? '<span class="tag was">原本 ' + c0 + esc(it.unit) + '</span>' : '')
       + (it.badge ? '<span class="tag badge">' + esc(it.badge) + '</span>' : '')
       + (out ? '<span class="tag out">缺貨</span>' : it.stock === '安排生產' ? '<span class="tag make">等待產出</span>' : '');
-    return '<div class="item' + (q ? ' on' : '') + (out ? ' off' : '') + (c0 && !q ? ' gone' : '') + '">'
+    return '<div class="item' + itemCls(it.code) + (out ? ' off' : '') + '">'
       + '<div class="name">' + esc(it.name) + '</div><div class="spec" title="' + esc(it.spec) + '">' + esc(it.spec) + '</div>'
       + (tags ? '<div class="tagrow">' + tags + '</div>' : '')
       + (out ? '' : '<div class="qty"><button class="minus" data-c="' + esc(it.code) + '" data-d="-1"' + (q ? '' : ' disabled') + ' aria-label="減少">−</button>'
@@ -239,9 +270,9 @@
       // 蔡阿博 9/27：藍框簡單就好，一行
       html += '<div class="ordbox"><div class="top1"><div><b>'
         + (state.moveTo ? esc(dueLabel(state.due)) + ' → <span class="to">' + esc(dueLabel(state.moveTo)) + '</span>'
-          : state.moving ? '點上面選新日期' : esc(dueLabel(state.due)) + ' 的單')
-        + '</b>' + (o.no && !state.moving ? ' <span class="no">#' + esc(o.no) + '</span>' : '') + '</div>'
-        + (state.moveTo || state.moving ? '<button data-act="unmove">不改了</button>' : '<button data-act="move">📅 修改日期</button>') + '</div></div>';
+          : esc(dueLabel(state.due)) + ' 的單')
+        + '</b>' + (o.no ? ' <span class="no">#' + esc(o.no) + '</span>' : '') + '</div>'
+        + (state.moveTo ? '<button data-act="unmove">不改日期</button>' : '<span class="tip">改日期：點上面日期</span>') + '</div></div>';
     }
     var cats = [];
     state.items.forEach(function (it) { var c = catOf(it); if (cats.indexOf(c) === -1) cats.push(c); });
@@ -296,24 +327,18 @@
     if (t.id !== 'pickDate' || !t.value) return;
     var v = t.value;
     if (!dueOk(v)) { alert('這天不能出貨（星期日不出貨，最遠可以選到 ' + dueLabel(state.range.max) + '），請選別天'); renderDues(); return; }
-    if (state.moving) {
-      if (orderOf(v) || v === state.due) { alert('那天已經有單了，請到那天的單上改'); renderDues(); return; }
-      state.moveTo = v; state.moving = false; render(); return;
-    }
-    select(v, true);
+    goDate(v);
   });
   dueBar.addEventListener('click', function (e) {
     var b = e.target.closest('button');
     if (!b || !b.dataset.due || b.disabled) return;
-    if (state.moving) { state.moveTo = b.dataset.due; state.moving = false; render(); return; }
-    select(b.dataset.due, true);
+    goDate(b.dataset.due);
   });
   app.addEventListener('click', function (e) {
     var b = e.target.closest('button');
     if (!b) return;
     if (b.dataset.pick) { select(b.dataset.pick, true); window.scrollTo(0, 0); return; }
-    if (b.dataset.act === 'move') { state.moving = true; render(); window.scrollTo(0, 0); return; }
-    if (b.dataset.act === 'unmove') { state.moving = false; state.moveTo = ''; render(); return; }
+    if (b.dataset.act === 'unmove') { state.moveTo = ''; render(); return; }
     if (b.dataset.cat !== undefined) { state.cat = b.dataset.cat; render(); return; }
     var c = b.dataset.c;
     if (!c) return;
@@ -326,7 +351,9 @@
     if (t.dataset.c) {
       var q = parseInt(String(t.value).replace(/[^0-9]/g, ''), 10) || 0;
       state.qty[t.dataset.c] = Math.min(9999, q);
-      t.closest('.item').classList.toggle('on', q > 0);
+      var box = t.closest('.item');
+      ['on', 'chg', 'gone'].forEach(function (k) { box.classList.remove(k); });
+      itemCls(t.dataset.c).split(' ').filter(String).forEach(function (k) { box.classList.add(k); });
       var minus = t.parentNode.querySelector('.minus');
       if (minus) minus.disabled = !q;
       updateBar();
