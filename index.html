@@ -250,7 +250,7 @@
 
   function historyHtml() {
     if (!state.history.length) return '';
-    return '<h2>這個月和上個月的訂單</h2>' + state.history.map(function (o) {
+    return '<h2>歷史訂單</h2>' + state.history.map(function (o) {
       return '<div class="hist' + (o.due === state.due ? ' cur' : '') + '"><div class="hh"><b>' + esc(o.label) + ' 出</b>'
         + (o.no ? '<span class="no">#' + esc(o.no) + '</span>' : '')
         + '<span class="st ' + (o.shipped ? 'ship' : 'wait') + '">' + (o.shipped ? '已出貨' : '處理中') + '</span>'
