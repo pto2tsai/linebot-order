@@ -213,7 +213,7 @@
 
   function subOf(v) {
     var o = orderOf(v);
-    return v === state.moveTo ? '改到這天' : (v === state.due && state.moveTo) ? '原本' : o ? '已下' + Object.keys(o.items).length + '項'
+    return v === state.moveTo ? '改到這天' : (v === state.due && state.moveTo) ? '原本' : o ? (Object.keys(o.items).length ? '已下' + Object.keys(o.items).length + '項' : '確認中')
       : (state.earliest && v < state.earliest) ? '需確認' : '';   // 比平常最快的早：業務會聯絡確認（v0929-A）
   }
   function renderDues() {
