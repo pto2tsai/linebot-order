@@ -342,7 +342,7 @@
     var t = e.target;
     if (t.id !== 'pickDate' || !t.value) return;
     var v = t.value;
-    if (!dueOk(v)) { alert('這天不能到貨（星期天和國定假日物流不送，最遠可以選到 ' + dueLabel(state.range.max) + '），請選別天'); renderDues(); return; }
+    if (!dueOk(v)) { alert('這天不能到貨（' + (state.range.route ? '不是您的配送日（每週' + state.range.route.map(function (w) { return '日一二三四五六'.charAt(w); }).join('、') + '）或放假' : '星期六、日和國定假日物流不送') + '，最遠可以選到 ' + dueLabel(state.range.max) + '），請選別天'); renderDues(); return; }
     goDate(v);
   });
   dueBar.addEventListener('click', function (e) {
