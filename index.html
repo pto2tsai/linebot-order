@@ -223,8 +223,10 @@
     render();
   }
 
+  function lockedOf(v) { return (state.pending || []).filter(function (o) { return o.due === v && !o.editable; })[0]; }
   function subOf(v) {
     var o = orderOf(v);
+    if (!o && lockedOf(v)) return '已下單';
     return v === state.moveTo ? '改到這天' : (v === state.due && state.moveTo) ? '原本' : o ? (Object.keys(o.items).length ? '已下' + Object.keys(o.items).length + '項' : '確認中')
       : (state.earliest && v < state.earliest) ? '需確認' : '';   // 比平常最快的早：業務會聯絡確認（v0929-A）
   }
@@ -255,6 +257,7 @@
   function goDate(v) {
     var o = cur();
     if (o && v === state.due) { if (state.moveTo) { state.moveTo = ''; render(); } return; }   // 點回原本那天＝不改日期
+    if (!o && lockedOf(v) && !confirm(dueLabel(v) + ' 已經有單了（在備貨或業務確認中，不能改）。還要另外再下一張嗎？')) { renderDues(); return; }
     if (!o || orderOf(v)) { select(v, true); return; }
     if (v === state.moveTo) return;
     askMove(v);
@@ -293,6 +296,7 @@
   function todayStr() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
   /** 待出貨：還沒出貨、到貨日還沒過的（含只有業務確認中品項的那天） */
   function pendingList() {
+    if (state.pending) return state.pending;
     var t = todayStr(), seen = {}, out = [];
     state.history.forEach(function (o) { if (!o.shipped && o.due >= t) { seen[o.due] = 1; out.push(o); } });
     state.orders.forEach(function (o) { if (!seen[o.due]) out.push({ due: o.due, label: o.label, no: o.no, lines: [], other: o.other, editable: true }); });
@@ -307,7 +311,7 @@
       + '<span class="st ' + (o.shipped ? 'ship' : 'wait') + '">' + (o.shipped ? '已出貨' : '處理中') + '</span>' + btn + '</div>'
       + o.lines.map(function (x) { return '<div class="hl"><span>' + esc(x.name) + ' ' + esc(x.spec) + '</span><b>' + x.qty + esc(x.unit) + '</b></div>'; }).join('')
       + (o.other ? '<div class="hl sub">另有 ' + o.other + ' 項業務確認中</div>' : '')
-      + (mode === 'pending' && !o.editable ? '<div class="hl sub">已過截單時間，要改請在群組打字</div>' : '') + '</div>';
+      + (mode === 'pending' && !o.editable ? '<div class="hl sub">已經在備貨了，要改請在群組打字，業務會跟您確認</div>' : '') + '</div>';
   }
   function renderTab() {
     var nav = document.getElementById('nav');
@@ -335,7 +339,7 @@
   function orderAgain(due) {
     var h = state.history.filter(function (o) { return o.due === due; })[0];
     if (!h) return;
-    var free = state.dues.filter(function (d) { return (!state.earliest || d.value >= state.earliest) && !orderOf(d.value); })[0];
+    var free = state.dues.filter(function (d) { return (!state.earliest || d.value >= state.earliest) && !orderOf(d.value) && !lockedOf(d.value); })[0];
     if (!free) { alert('最近幾天都已經有單了，請到「待出貨」修改那天的單'); return; }
     state.tab = 'order';
     select(free.value, false);
@@ -531,10 +535,11 @@
         state.earliest = r.earliest || '';
         state.orders = r.orders || [];
         state.history = r.history || [];
+        state.pending = r.pending || null;
         document.getElementById('searchWrap').hidden = false;
         document.getElementById('title').textContent = (r.customer ? r.customer + ' ' : '') + '下單';
         // 按〔修改〕進來 → 選最近下的那張；一般 → 最近的出貨日（那天有單就帶出來）
-        var normal = state.dues.filter(function (d) { return !state.earliest || d.value >= state.earliest; })[0];
+        var normal = state.dues.filter(function (d) { return (!state.earliest || d.value >= state.earliest) && !lockedOf(d.value); })[0];
         var first = qs.get('m') === 'edit' && r.latest ? r.latest : (normal ? normal.value : (state.dues.length ? state.dues[0].value : ''));
         select(first, false);
         document.querySelector('main').classList.add('tabbed');
