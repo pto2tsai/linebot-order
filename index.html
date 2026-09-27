@@ -305,10 +305,12 @@
   function cardHtml(o, mode) {
     var btn = mode === 'pending'
       ? (o.editable ? '<button class="go2" data-pick="' + esc(o.due) + '">修改</button>' : '')
-      : (o.lines.length ? '<button class="again" data-again="' + esc(o.due) + '">再訂一次</button>' : '');
-    return '<div class="hist"><div class="hh"><b>' + esc(o.label) + ' 到</b>'
-      + (o.no ? '<span class="no">#' + esc(o.no) + '</span>' : '')
-      + '<span class="st ' + (o.shipped ? 'ship' : 'wait') + '">' + (o.shipped ? '已出貨' : '處理中') + '</span>' + btn + '</div>'
+      : (o.lines.length ? '<button class="again" data-again="' + esc(o.key || o.due) + '">再訂一次</button>' : '');
+    // 銷貨單（ERP 出貨紀錄）：寫出貨日、「銷貨單」
+    var head = o.sale ? esc(o.label) + ' 出貨' : esc(o.label) + ' 到';
+    return '<div class="hist"><div class="hh"><b>' + head + '</b>'
+      + (o.sale ? '<span class="no">銷貨單</span>' : o.no ? '<span class="no">#' + esc(o.no) + '</span>' : '')
+      + '<span class="st ' + (o.shipped || o.sale ? 'ship' : 'wait') + '">' + (o.shipped || o.sale ? '已出貨' : '處理中') + '</span>' + btn + '</div>'
       + o.lines.map(function (x) { return '<div class="hl"><span>' + esc(x.name) + ' ' + esc(x.spec) + '</span><b>' + x.qty + esc(x.unit) + '</b></div>'; }).join('')
       + (o.other ? '<div class="hl sub">另有 ' + o.other + ' 項業務確認中</div>' : '')
       + (mode === 'pending' && !o.editable ? '<div class="hl sub">已經在備貨了，要改請在群組打字，業務會跟您確認</div>' : '') + '</div>';
@@ -332,12 +334,18 @@
     if (ordering) { render(); return; }
     document.getElementById('subtitle').textContent = state.tab === 'pending' ? '還沒出貨的單，點「修改」可以改' : '這個月和上個月的單，點「再訂一次」帶入品項';
     if (state.tab === 'pending') show(pend.length ? pend.map(function (o) { return cardHtml(o, 'pending'); }).join('') : '<div class="empty">目前沒有待出貨的單</div>');
-    else show(state.history.length ? state.history.map(function (o) { return cardHtml(o, 'history'); }).join('') : '<div class="empty">這個月和上個月還沒有訂單</div>');
+    else { var hl = historyList(); show(hl.length ? hl.map(function (o) { return cardHtml(o, 'history'); }).join('') : '<div class="empty">這個月和上個月還沒有訂單</div>'); }
+  }
+  /** 歷史訂單：LINE 下的單＋銷貨單（蔡阿博 9/27：剛開始用的客人也看得到以前叫過什麼），新的在前 */
+  function historyList() {
+    var out = state.history.map(function (o) { return Object.assign({ key: o.due, sortKey: o.due }, o); });
+    (state.sales || []).forEach(function (x) { out.push({ key: 'S:' + x.d, sortKey: x.d, sale: true, due: x.d, label: x.label, lines: x.lines, other: 0 }); });
+    return out.sort(function (a, b) { return a.sortKey < b.sortKey ? 1 : a.sortKey > b.sortKey ? -1 : 0; });
   }
   function goTab(t) { state.tab = t; renderTab(); window.scrollTo(0, 0); }
   /** 再訂一次（攤販：跟上次一樣就好）：選一天還沒有單的、帶入上次的件數，自己看過再送出 */
   function orderAgain(due) {
-    var h = state.history.filter(function (o) { return o.due === due; })[0];
+    var h = historyList().filter(function (o) { return o.key === due; })[0];
     if (!h) return;
     var free = state.dues.filter(function (d) { return (!state.earliest || d.value >= state.earliest) && !orderOf(d.value) && !lockedOf(d.value); })[0];
     if (!free) { alert('最近幾天都已經有單了，請到「待出貨」修改那天的單'); return; }
@@ -536,6 +544,7 @@
         state.orders = r.orders || [];
         state.history = r.history || [];
         state.pending = r.pending || null;
+        state.sales = r.sales || [];
         document.getElementById('searchWrap').hidden = false;
         document.getElementById('title').textContent = (r.customer ? r.customer + ' ' : '') + '下單';
         // 按〔修改〕進來 → 選最近下的那張；一般 → 最近的出貨日（那天有單就帶出來）
