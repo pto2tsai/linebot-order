@@ -118,6 +118,16 @@
   main.tabbed { padding-bottom: 190px; }
   .hist .again { padding: 6px 12px; font-size: 14px; border-radius: 10px; border: 1px solid var(--blue); background: #fff; color: var(--blue); font-weight: 700; }
   .empty { text-align: center; padding: 40px 16px; color: var(--sub); }
+  /* 主管看板 */
+  .dsum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 4px 0 8px; }
+  .dbox { background: #fff; border-radius: 14px; padding: 10px 8px; text-align: center; border: 2px solid transparent; }
+  .dbox b { display: block; font-size: 22px; color: var(--blue-d); }
+  .dbox span { font-size: 13px; color: var(--sub); }
+  .dbox.warn { border-color: var(--coral); }
+  .dbox.warn b, .dbox em, .dred { color: var(--coral-d); font-style: normal; }
+  .drefresh { width: 100%; height: 40px; border: 1px solid var(--line); border-radius: 12px; background: #fff; color: var(--blue); font-size: 15px; font-weight: 700; font-family: inherit; }
+  .hist.dstale { border: 2px solid var(--coral); background: #fff8f6; }
+  .hist .hl.dwarn { color: var(--coral-d); }
   .bar button, .sheet .go { width: 100%; max-width: 640px; display: block; margin: 0 auto; height: 56px; border: 0; border-radius: 14px; font-size: 20px; font-weight: 700; background: var(--coral); color: #fff; }
   .bar button:disabled { background: #c9ccd1; }
   .mask { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 10; display: flex; align-items: flex-end; }
@@ -543,11 +553,55 @@
     };
   });
 
+  /***** 主管看板（v0929-P，蔡阿博 9/27）：異常、每位業務待處理、今明兩天要出的單。只給業務名單上的人 *****/
+  function startDash() {
+    document.getElementById('title').textContent = '主管看板';
+    document.getElementById('subtitle').textContent = '讀取中…';
+    show('<div class="msg">請稍等，正在整理</div>');
+    call({ liff: 'dash' }).then(function (r) {
+      if (!r.ok) { fail(r.error || '讀不到資料'); return; }
+      renderDash(r);
+    }).catch(function (err) { fail('讀不到：' + (err && err.message || err)); });
+  }
+  function renderDash(r) {
+    document.getElementById('subtitle').textContent = r.at + ' 更新';
+    var stale = r.issues.filter(function (x) { return x.stale; }).length;
+    var h = '<div class="dsum">'
+      + r.days.map(function (d, i) { return '<div class="dbox"><b>' + d.orders.length + ' 家</b><span>' + (i ? '明天' : '今天') + '出' + (d.total ? '・' + esc(d.total) : '') + '</span></div>'; }).join('')
+      + '<div class="dbox' + (r.issues.length ? ' warn' : '') + '"><b>' + r.issues.length + ' 項</b><span>要處理' + (stale ? '・<em>' + stale + ' 項太久</em>' : '') + '</span></div></div>'
+      + '<button class="drefresh" id="dRefresh">重新整理</button>';
+    // 異常
+    h += '<h2>要處理的（最久的在前）</h2>';
+    h += r.issues.length ? r.issues.map(function (x) {
+      return '<div class="hist' + (x.stale ? ' dstale' : '') + '"><div class="hh"><b>' + esc(x.customer) + '</b><span class="st wait">' + esc(x.why) + '</span></div>'
+        + '<div class="hl"><span>' + esc(x.name) + '</span><b>' + (x.qty ? x.qty + esc(x.unit) : '') + '</b></div>'
+        + '<div class="hl sub"><span>' + esc(x.sales) + (x.arrive ? '・' + esc(x.arrive) + ' 到' : '') + '</span><span>' + esc(x.at) + '（' + (x.hours < 1 ? Math.round(x.hours * 60) + ' 分' : x.hours + ' 小時') + '前）</span></div></div>';
+    }).join('') : '<div class="empty">沒有要處理的 👍</div>';
+    // 每位業務
+    h += '<h2>每位業務手上待處理的</h2>';
+    h += r.sales.length ? '<div class="hist">' + r.sales.map(function (s0) {
+      return '<div class="hl"><span><b>' + esc(s0.sales) + '</b>　' + esc(s0.customers.join('、')) + '</span><b>' + s0.count + ' 項' + (s0.stale ? '<em class="dred">（' + s0.stale + ' 太久）</em>' : '') + '</b></div>';
+    }).join('') + '</div>' : '<div class="empty">都處理完了</div>';
+    // 今明兩天要出的單
+    r.days.forEach(function (d, i) {
+      h += '<h2>' + (i ? '明天' : '今天') + ' ' + esc(d.label) + ' 要出的單' + (d.total ? '<span class="h2tip">共 ' + d.orders.length + ' 家・' + esc(d.total) + '</span>' : '') + '</h2>';
+      h += d.orders.length ? d.orders.map(function (o) {
+        return '<div class="hist"><div class="hh"><b>' + esc(o.customer) + '</b><span class="no">' + esc(o.arrive) + ' 到・' + esc(o.sales) + '</span></div>'
+          + o.lines.map(function (x) { return '<div class="hl"><span>' + esc(x.name) + '</span><b>' + x.qty + esc(x.unit) + '</b></div>'; }).join('')
+          + o.pending.map(function (x) { return '<div class="hl dwarn"><span>⚠ ' + esc(x.name) + '（' + esc(x.why) + '）</span><b>' + (x.qty ? x.qty + esc(x.unit) : '') + '</b></div>'; }).join('')
+          + '</div>';
+      }).join('') : '<div class="empty">沒有</div>';
+    });
+    show(h);
+    document.getElementById('dRefresh').onclick = startDash;
+  }
+
   function start() {
     if (!API || !LIFF_ID || typeof liff === 'undefined') { fail('下單畫面設定不完整，請跟業務說'); return; }
     liff.init({ liffId: LIFF_ID }).then(function () {
       if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
       var qs = new URLSearchParams(location.search);
+      if (qs.get('view') === 'dash') { startDash(); return; }   // 主管看板（v0929-P）
       state.g = qs.get('g') || '';
       if (!state.g) { fail('請從 LINE 群組裡的下單連結打開'); return; }
       return call({ liff: 'list' }).then(function (r) {
