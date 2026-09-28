@@ -6,17 +6,40 @@
 <title>重量核對</title>
 <link rel="apple-touch-icon" href="icon-weigh.png">
 <link rel="icon" type="image/png" href="icon-weigh.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="重量核對">
 <meta name="robots" content="noindex">
-<style>body{margin:0;font:18px sans-serif;color:#1d4aae;display:flex;align-items:center;justify-content:center;height:100vh;background:#fff}</style>
+<style>
+  body{margin:0;font:17px/1.6 -apple-system,"PingFang TC",sans-serif;color:#0f2a5e;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;box-sizing:border-box;text-align:center}
+  img{width:120px;height:120px;border-radius:27px;box-shadow:0 2px 10px #0002}
+  h1{font-size:22px;margin:16px 0 4px}
+  .tip{background:#eef4fc;border-radius:14px;padding:14px 16px;margin:18px 0;text-align:left;max-width:340px}
+  a.go{display:inline-block;margin-top:6px;padding:12px 28px;border-radius:12px;background:#1d4aae;color:#fff;text-decoration:none;font-weight:700}
+</style>
 </head>
 <body>
-<p id="m">開啟中…</p>
+<img src="icon-weigh.png" alt="">
+<h1>重量核對</h1>
+<div id="m">
+  <div class="tip">
+    <b>加到手機桌面：</b><br>
+    按 Safari 下方的「分享」<br>→「加入主畫面」→「加入」<br>
+    之後點桌面圖示就會直接打開重量核對。
+  </div>
+  <a class="go" id="go" href="#">現在直接打開</a>
+</div>
 <script>
   // 手機桌面用的入口（崇文 Logo）：Apps Script 的網頁 iPhone 加到主畫面讀不到自己的圖示，所以先開這一頁再跳過去。
   // 網址不寫在這裡（系統任何人拿到網址都能用），放在連結的「#」後面，只存在各人手機的桌面捷徑裡。
+  // 在 Safari 打開時不跳（讓人按「加入主畫面」）；從桌面圖示打開（網頁 App 模式）才自動跳。
   var id = decodeURIComponent((location.hash || '').slice(1));
-  if (/^AKfy[A-Za-z0-9_-]{20,}$/.test(id)) location.replace('https://script.google.com/macros/s/' + id + '/exec');
-  else document.getElementById('m').textContent = '連結不完整，請跟管理者要正確的連結';
+  var ok = /^AKfy[A-Za-z0-9_-]{20,}$/.test(id);
+  var url = ok ? 'https://script.google.com/macros/s/' + id + '/exec' : '';
+  var fromHome = window.navigator.standalone === true || (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
+  if (!ok) document.getElementById('m').innerHTML = '<p>連結不完整，請跟管理者要正確的連結</p>';
+  else if (fromHome) { document.getElementById('m').innerHTML = '<p>開啟中…</p>'; location.replace(url); }
+  else document.getElementById('go').href = url;
 </script>
 </body>
 </html>
