@@ -229,6 +229,7 @@
   // 分類：品名有這些字就歸這一類；兩類以上才顯示分類按鈕
   var CATS = [['白蝦', /白蝦/], ['草蝦', /草蝦/], ['透抽／小卷', /透抽|小卷|冰卷|中卷/], ['鮭魚', /鮭/], ['魷魚', /魷/], ['干貝／扇貝', /干貝|扇貝/], ['鯛魚', /鯛/]];
   var REC = '⭐ 推薦';
+  var MORE_MAX = 20;   // 其他品項一次最多列幾筆
   function catOf(it) { for (var i = 0; i < CATS.length; i++) if (CATS[i][1].test(it.name)) return CATS[i][0]; return '其他'; }
   var app = document.getElementById('app');
   var bar = document.getElementById('bar');
@@ -491,7 +492,7 @@
     }
     if (state.againFrom && !o) html += '<div class="ordbox">已帶入 ' + esc(state.againFrom) + ' 的品項<div class="sub">看過件數、到貨日，再按下面「送出」</div></div>';
     var cats = [];
-    state.items.forEach(function (it) { if (it.sec === 'old') return; var c = catOf(it); if (cats.indexOf(c) === -1) cats.push(c); });
+    state.items.forEach(function (it) { if (it.sec === 'old' || it.sec === 'more') return; var c = catOf(it); if (cats.indexOf(c) === -1) cats.push(c); });
     cats.sort(function (a, b) { return (a === '其他') - (b === '其他'); });
     // 有推薦品項就多一顆「⭐ 推薦」（蔡阿博 9/28：推薦也要能一鍵篩選）
     var hasRec = state.items.some(function (it) { return it.sec === 'rec'; });
@@ -503,19 +504,30 @@
     if (chips.innerHTML !== chipsHtml) chips.innerHTML = chipsHtml;   // 沒變就不重畫（捲到一半不會跳回去）
     // 這天的品項在最上面，再來常購（含「新增」）、推薦品項（v0928-N）
     var shown = 0;
-    [['order', '這天的品項'], ['usual', '您常買的品項'], ['rec', '⭐ 推薦品項'], ['old', '以前買過']].forEach(function (sec) {
+    // 其他品項（v0929-AJ）：以前沒買過、近半年有在賣的；打 2 個字以上才找、最多列 MORE_MAX 筆
+    var words = f.split(/\s+/).filter(String);
+    var hit = function (it) { var t = (it.name + ' ' + it.spec).toUpperCase(); return words.every(function (w) { return t.indexOf(w.toUpperCase()) !== -1; }); };
+    var moreN = 0, moreCut = 0;
+    [['order', '這天的品項'], ['usual', '您常買的品項'], ['rec', '⭐ 推薦品項'], ['old', '以前買過'], ['more', '其他品項（以前沒買過）']].forEach(function (sec) {
       var part = '';
       state.items.forEach(function (it) {
         var sc = state.orig[it.code] ? 'order' : (it.sec || 'usual');
         if (sc !== sec[0]) return;
-        if (sc === 'old' && !f && !state.qty[it.code]) return;   // 以前買過的：搜尋時才出現（選了就留著）
-        if (f && (it.name + it.spec).indexOf(f) === -1) return;
+        if ((sc === 'old' || sc === 'more') && !f && !state.qty[it.code]) return;   // 以前買過、其他品項：搜尋時才出現（選了就留著）
+        if (f && !hit(it)) return;
+        if (sc === 'more' && !state.qty[it.code]) {
+          if (f.replace(/\s/g, '').length < 2) return;
+          if (moreN >= MORE_MAX) { moreCut++; return; }
+          moreN++;
+        }
         if (!f && state.cat === REC && it.sec !== 'rec') return;
         if (!f && state.cat && state.cat !== REC && catOf(it) !== state.cat) return;   // 有打字搜尋就找全部，不管分類
         shown++;
         part += itemHtml(it);
       });
       if (part) html += '<h2>' + sec[1] + (sec[0] === 'order' ? '<span class="h2tip">改件數、減到 0＝不要了</span>' : '') + '</h2>' + part;
+      if (sec[0] === 'more' && moreCut) html += '<div class="hint" style="text-align:center">還有 ' + moreCut + ' 項，多打幾個字找得更準（例如規格「60/70」）</div>';
+      if (sec[0] === 'more' && f.replace(/\s/g, '').length >= 2 && state.catalog === 'loading') html += '<div class="hint" style="text-align:center">正在找其他品項…</div>';
       if (sec[0] === 'order' && o && o.other && !f) html += '<div class="hint">這天還有 ' + o.other + ' 項業務確認中，要改請在群組打字</div>';
     });
     if (!shown) html += f ? shrimp('sweat', '找不到「' + esc(f) + '」', '沒買過的品項，可以請業務幫您找') : shrimp('stand', '還沒有常買的品項', '請直接在群組打字下單');
@@ -597,7 +609,20 @@
   // 搜尋框放在清單外面、不跟著重畫；注音／倉頡選字中（composition）不搜尋，選好字才找（9/28 測試群：打出「ㄅㄅㄞㄞ」）
   var searchBox = document.getElementById('search');
   var composing = false;
-  function doSearch() { state.filter = searchBox.value; render(); }
+  function doSearch() { state.filter = searchBox.value; loadCatalog(); render(); }
+  /** 第一次打 2 個字以上才去拿其他品項（一次拿完，之後在手機上找，打字不用等） */
+  function loadCatalog() {
+    if (state.catalog || String(state.filter).replace(/\s/g, '').length < 2) return;
+    state.catalog = 'loading';
+    call({ liff: 'catalog' }).then(function (r) {
+      if (!r.ok) throw new Error(r.error || '');
+      var has = {};
+      state.items.forEach(function (it) { has[it.code] = 1; });
+      (r.items || []).forEach(function (it) { if (!has[it.code]) { it.sec = 'more'; state.items.push(it); } });
+      state.catalog = 'done';
+      render();
+    }).catch(function () { state.catalog = ''; render(); });   // 拿不到就只找自己的，下次打字再試
+  }
   searchBox.addEventListener('compositionstart', function () { composing = true; });
   searchBox.addEventListener('compositionend', function () { composing = false; doSearch(); });
   searchBox.addEventListener('input', function (e) { if (composing || e.isComposing) return; doSearch(); });
@@ -791,6 +816,7 @@
       return call({ liff: 'list' }).then(function (r) {
         if (!r.ok) { fail(r.error || '讀不到資料'); return; }
         state.items = r.items || [];
+        state.catalog = '';   // 清單重拿 → 其他品項也重拿
         state.dues = r.dues || [];
         state.range = r.range || null;
         state.earliest = r.earliest || '';
