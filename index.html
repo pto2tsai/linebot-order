@@ -174,6 +174,11 @@
   @media (prefers-reduced-motion: reduce) { .mood img, .mood .conf i { animation: none; } }
   /* 主管看板 */
   .dsum { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 4px 0 8px; }
+  .dpast { margin: 14px 0 6px; }
+  .dpast > summary { cursor: pointer; font-weight: 700; color: var(--sub); padding: 8px 2px; list-style: none; }
+  .dpast > summary::before { content: '▸ '; }
+  .dpast[open] > summary::before { content: '▾ '; }
+  .dpast .h2tip { float: right; font-size: 13px; font-weight: 400; color: var(--sub); margin-top: 2px; }
   .dbox { background: #fff; border-radius: 14px; padding: 10px 8px; text-align: center; border: 2px solid transparent; }
   .dbox b { display: block; font-size: 22px; color: var(--blue-d); }
   .dbox span { font-size: 13px; color: var(--sub); }
@@ -714,7 +719,7 @@
     if (dashView === 'key') { renderKeyin(r, tabs); bindTabs(); return; }
     var stale = r.issues.filter(function (x) { return x.stale; }).length;
     var h = tabs + '<div class="dsum">'
-      + r.days.map(function (d, i) { return '<div class="dbox"><b>' + d.orders.length + ' 家</b><span>' + esc(d.title || d.label) + '出' + (d.total ? '<br>' + esc(d.total) : '') + '</span></div>'; }).join('')
+      + r.days.filter(function (d) { return !d.past; }).map(function (d, i) { return '<div class="dbox"><b>' + d.orders.length + ' 家</b><span>' + esc(d.title || d.label) + '出' + (d.total ? '<br>' + esc(d.total) : '') + '</span></div>'; }).join('')
       + '<div class="dbox' + (r.issues.length ? ' warn' : '') + '"><b>' + r.issues.length + ' 項</b><span>要處理' + (stale ? '・<em>' + stale + ' 項太久</em>' : '') + '</span></div></div>'
       + '<div class="dbtns"><button class="drefresh" id="dRefresh">重新整理</button><button class="drefresh' + (r.withTest ? ' on' : '') + '" id="dTest">' + (r.withTest ? '✓ 含測試群' : '顯示測試群') + '</button></div>';
     // 異常
@@ -733,15 +738,19 @@
     h += r.sales.length ? '<div class="hist">' + r.sales.map(function (s0) {
       return '<div class="hl"><span><b>' + esc(s0.sales) + '</b>　' + esc(s0.customers.join('、')) + '</span><b>' + s0.count + ' 項' + (s0.stale ? '<em class="dred">（' + s0.stale + ' 太久）</em>' : '') + '</b></div>';
     }).join('') + '</div>' : '<div class="empty">都處理完了</div>';
-    // 今明兩天要出的單
+    // 今明兩天要出的單；前一個出貨日的（v0930-AS）收起來，按一下才展開
     r.days.forEach(function (d, i) {
-      h += '<h2>' + (d.title ? d.title + ' ' : '') + esc(d.label) + ' 要出的單' + (d.total ? '<span class="h2tip">共 ' + d.orders.length + ' 家・' + esc(d.total) + '</span>' : '') + '</h2>';
+      if (d.past) {
+        if (!d.orders.length) return;
+        h += '<details class="dpast"><summary>' + (d.title ? d.title + ' ' : '') + esc(d.label) + ' 出的單（已過出貨日，按這裡看）<span class="h2tip">共 ' + d.orders.length + ' 家' + (d.total ? '・' + esc(d.total) : '') + '</span></summary>';
+      } else h += '<h2>' + (d.title ? d.title + ' ' : '') + esc(d.label) + ' 要出的單' + (d.total ? '<span class="h2tip">共 ' + d.orders.length + ' 家・' + esc(d.total) + '</span>' : '') + '</h2>';
       h += d.orders.length ? d.orders.map(function (o) {
         return '<div class="hist"><div class="hh"><b>' + esc(o.customer) + '</b><span class="no">' + esc(o.arrive) + ' 到・' + esc(o.sales) + '</span></div>'
           + o.lines.map(function (x) { return '<div class="hl"><span>' + esc(x.name) + '</span><b>' + x.qty + esc(x.unit) + '</b></div>'; }).join('')
           + o.pending.map(function (x) { return '<div class="hl dwarn"><span>⚠ ' + esc(x.name) + '（' + esc(x.why) + '）</span><b>' + (x.qty ? x.qty + esc(x.unit) : '') + '</b></div>'; }).join('')
           + '</div>';
       }).join('') : '<div class="empty">沒有</div>';
+      if (d.past) h += '</details>';
     });
     show(h);
     document.getElementById('dRefresh').onclick = startDash;
@@ -762,7 +771,10 @@
     var h = tabs + '<div class="ktip">還沒出貨的 LINE 訂單。在電腦打開，按<b>品號</b>就複製，貼到鼎新受訂單的品號欄；整張打完按「已打」。</div>';
     h += '<div class="dbtns"><button class="drefresh" id="dRefresh">重新整理</button><button class="drefresh' + (r.withTest ? ' on' : '') + '" id="dTest">' + (r.withTest ? '✓ 含測試群' : '顯示測試群') + '</button></div>';
     if (!list.length) h += shrimp('date', '沒有要打的單', '');
+    var nPast = list.filter(function (o) { return o.past; }).length;
+    if (nPast) h += '<details class="dpast"><summary>' + esc(list[0].label) + ' 出的單（已過出貨日，按這裡看）<span class="h2tip">' + nPast + ' 張</span></summary>';
     list.forEach(function (o, i) {
+      if (nPast && i === nPast) h += '</details>';
       var saved = null;
       try { saved = JSON.parse(localStorage.getItem(keyinKey(o)) || 'null'); } catch (e) { saved = null; }
       var diff = saved ? keyinDiff(o, saved) : [];
@@ -775,6 +787,7 @@
           return '<div class="kline"><button class="kc" data-c="' + esc(x.code) + '">' + esc(x.code) + '</button><span class="kn">' + esc(x.name) + '</span><span class="kq">' + x.qty + esc(x.unit) + '</span></div>';
         }).join('') + '</div>';
     });
+    if (nPast && nPast === list.length) h += '</details>';
     show(h);
     document.getElementById('dRefresh').onclick = startDash;
     document.getElementById('dTest').onclick = function () { dashTest = !dashTest; startDash(); };
