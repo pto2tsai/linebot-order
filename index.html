@@ -778,7 +778,7 @@
       return '<div class="hist' + (x.stale ? ' dstale' : '') + '"><div class="hh"><b>' + esc(x.customer) + '</b><span class="st wait">' + esc(x.why) + '</span></div>'
         + '<div class="hl"><span>' + esc(x.name) + '</span><b>' + (x.qty ? x.qty + esc(x.unit) : '') + '</b></div>'
         + '<div class="hl sub"><span>' + esc(x.sales) + (x.arrive ? '・' + (x.late ? '<em class="dred">' + esc(x.arrive) + ' 到（已過）</em>' : esc(x.arrive) + ' 到') : '') + '</span><span>' + esc(x.at) + '（' + (x.hours < 1 ? Math.round(x.hours * 60) + ' 分' : x.hours + ' 小時') + '前）</span></div>'
-        + (x.id ? '<div class="hl"><span></span><button class="tdone" data-id="' + esc(x.id) + '">✓ 處理好了</button></div>' : '') + '</div>';
+        + (x.id ? '<div class="hl"><span></span><button class="tdone" data-id="' + esc(x.id) + '"' + (x.fix ? ' data-fix="1"' : '') + '>✓ 處理好了</button></div>' : '') + '</div>';
     }).join('') : shrimp('date', '都處理完了，蝦兄約會去！', '');
     // 每位業務
     h += '<h2>每位業務手上待處理的</h2>';
@@ -805,9 +805,14 @@
     // v1001-BA 要處理＝待辦：處理好了才拿掉
     Array.prototype.forEach.call(document.querySelectorAll('.tdone'), function (b) {
       b.onclick = function () {
-        if (!confirm('這一項處理好了？按確定就從「要處理」拿掉')) return;
+        // v1001-BU（蔡阿博 10/2：按了處理好了訂單就消失了）有品號、件數的先問要不要出貨
+        var req = { liff: 'dashDone', ids: [b.getAttribute('data-id')], test: dashTest };
+        if (b.getAttribute('data-fix')) {
+          if (confirm('這一項要出貨嗎？\n\n「確定」＝照單出（排進打單清單）\n「取消」＝不出貨')) req = { liff: 'dashFix', act: 'confirm', ids: req.ids, test: dashTest };
+          else if (!confirm('不出貨，只把提醒拿掉？（這一項不會出現在打單清單）')) return;
+        } else if (!confirm('這一項處理好了？按確定就從「要處理」拿掉')) return;
         b.disabled = true; b.textContent = '處理中…';
-        call({ liff: 'dashDone', ids: [b.getAttribute('data-id')], test: dashTest }).then(function (r2) {
+        call(req).then(function (r2) {
           if (!r2.ok) { alert(r2.error || '沒有成功，請再按一次'); b.disabled = false; b.textContent = '✓ 處理好了'; return; }
           renderDash(r2);
         }).catch(function () { alert('沒有成功，請再按一次'); b.disabled = false; b.textContent = '✓ 處理好了'; });
