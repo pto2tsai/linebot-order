@@ -195,6 +195,8 @@
   .dtabs { display: flex; gap: 8px; margin: 4px 0 10px; } .dtabs button { flex: 1; height: 44px; border-radius: 12px; border: 2px solid var(--blue); background: #fff; color: var(--blue); font-size: 16px; font-weight: 700; font-family: inherit; }
   .dtabs button.on { background: var(--blue); color: #fff; }
   .ktip { font-size: 13px; color: var(--sub); margin: 0 4px 6px; line-height: 1.5; }
+  .bq { display: flex; gap: 8px; margin: 0 0 10px; } .bq input { flex: 1; min-width: 0; height: 44px; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; font-size: 16px; font-family: inherit; } .bq button { width: 72px; }
+  .bstat { background: #EEF4FB; border-radius: 12px; padding: 10px 12px; margin: 0 0 10px; font-size: 14px; line-height: 1.6; } .bstat b { color: var(--blue); }
   .kline { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; padding: 6px 0; border-top: 1px dashed var(--line); }
   .kline .kc { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 16px; font-weight: 700; color: var(--blue-d); padding: 6px 10px; border: 1px solid var(--blue); border-radius: 10px; background: #f3f8fe; }
   .kline .kc.ok { background: var(--blue); color: #fff; }
@@ -713,12 +715,14 @@
   }
   function renderDash(r) {
     document.getElementById('subtitle').textContent = r.at + ' 更新';
-    var tabs = '<div class="dtabs"><button id="tDash"' + (dashView === 'dash' ? ' class="on"' : '') + '>看板</button><button id="tKey"' + (dashView === 'key' ? ' class="on"' : '') + '>打單清單' + (r.keyin && r.keyin.length ? '（' + r.keyin.length + '）' : '') + '</button></div>';
+    var tabs = '<div class="dtabs"><button id="tDash"' + (dashView === 'dash' ? ' class="on"' : '') + '>看板</button><button id="tKey"' + (dashView === 'key' ? ' class="on"' : '') + '>打單清單' + (r.keyin && r.keyin.length ? '（' + r.keyin.length + '）' : '') + '</button><button id="tBuy"' + (dashView === 'buy' ? ' class="on"' : '') + '>進貨</button></div>';
     var bindTabs = function () {
       document.getElementById('tDash').onclick = function () { dashView = 'dash'; try { localStorage.setItem('dashView', 'dash'); } catch (e) { } renderDash(r); };
       document.getElementById('tKey').onclick = function () { dashView = 'key'; try { localStorage.setItem('dashView', 'key'); } catch (e) { } renderDash(r); };
+      document.getElementById('tBuy').onclick = function () { dashView = 'buy'; try { localStorage.setItem('dashView', 'buy'); } catch (e) { } renderDash(r); };
     };
     if (dashView === 'key') { renderKeyin(r, tabs); bindTabs(); return; }
+    if (dashView === 'buy') { renderBuy(tabs, buyQ); bindTabs(); return; }
     var stale = r.issues.filter(function (x) { return x.stale; }).length;
     var h = tabs + '<div class="dsum">'
       + r.days.filter(function (d) { return !d.past; }).map(function (d, i) { return '<div class="dbox"><b>' + d.orders.length + ' 家</b><span>' + esc(d.title || d.label) + '出' + (d.total ? '<br>' + esc(d.total) : '') + '</span></div>'; }).join('')
@@ -770,6 +774,39 @@
       };
     });
     bindTabs();
+  }
+  /** v1001-BN 進貨：我們在廠商群下的單（小幫手只聽不說）。空白＝最近 30 天；打品名或廠商查一年內的、看價格 */
+  var buyQ = '';
+  try { buyQ = localStorage.getItem('buyQ') || ''; } catch (e) { }
+  function renderBuy(tabs, q) {
+    show(tabs + '<div class="ktip">我們在廠商群下的單（小幫手在廠商群只聽不說話）。打品名或廠商，查以前跟誰進、多少錢。</div>'
+      + '<div class="bq"><input id="bq" type="search" placeholder="例如 白蝦 20/30、大海" value="' + esc(q) + '"><button class="drefresh" id="bgo">查</button></div>'
+      + '<div id="blist"><div class="empty">讀取中…</div></div>');
+    var go = function () {
+      buyQ = document.getElementById('bq').value.trim();
+      try { localStorage.setItem('buyQ', buyQ); } catch (e) { }
+      loadBuy(buyQ);
+    };
+    document.getElementById('bgo').onclick = go;
+    document.getElementById('bq').onkeydown = function (e) { if (e.key === 'Enter') go(); };
+    loadBuy(q);
+  }
+  function loadBuy(q) {
+    var box = document.getElementById('blist');
+    box.innerHTML = '<div class="empty">讀取中…</div>';
+    call({ liff: 'purchase', q: q }).then(function (r) {
+      if (!r.ok) { box.innerHTML = '<div class="empty">' + esc(r.error || '讀不到') + '</div>'; return; }
+      var h = '';
+      if (r.stats) h += '<div class="bstat">最近一次 <b>' + r.stats.latest + '</b> ' + esc(r.stats.latestUnit || '') + '（' + esc(r.stats.latestAt) + '・' + esc(r.stats.latestSup) + '）<br>一年內最低 <b>' + r.stats.min + '</b>・最高 <b>' + r.stats.max + '</b>（有價格的 ' + r.stats.n + ' 筆）</div>';
+      if (!r.rows.length) h += '<div class="empty">' + (q ? '查不到「' + esc(q) + '」' : '最近 30 天還沒有進貨紀錄') + '</div>';
+      h += r.rows.map(function (x) {
+        return '<div class="hist"><div class="hh"><b>' + esc(x.supplier) + '</b><span class="no">' + esc(x.at) + '・' + esc(x.who) + (x.status === '報價' ? '・廠商報價' : '') + '</span></div>'
+          + '<div class="hl"><span>' + esc(x.name) + (x.size ? ' ' + esc(x.size) : '') + '</span><b>' + (x.qty ? x.qty + esc(x.unit) : '') + '</b></div>'
+          + (x.price || x.due ? '<div class="hl sub"><span>' + (x.due ? esc(x.due.replace(/^\d{4}-0?(\d+)-0?(\d+)$/, '$1/$2')) + ' 到' : '') + '</span><span>' + (x.price ? x.price + ' ' + esc(x.priceUnit) : '') + '</span></div>' : '')
+          + '</div>';
+      }).join('');
+      box.innerHTML = h;
+    }).catch(function (err) { box.innerHTML = '<div class="empty">讀不到：' + esc(err && err.message || err) + '</div>'; });
   }
   /** 打單清單：還沒出貨的 LINE 訂單，列鼎新品號、數量；按品號複製，打完按「已打」（記在這支手機／電腦）。打完客人又改 → 提醒 */
   function keyinKey(o) { return 'keyin:' + o.day + '|' + o.customer; }
