@@ -174,6 +174,8 @@
   @media (prefers-reduced-motion: reduce) { .mood img, .mood .conf i { animation: none; } }
   /* 主管看板 */
   .dsum { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 4px 0 8px; }
+  .tdone { border: 1.5px solid var(--blue-d); background: #fff; color: var(--blue-d); font-weight: 700; border-radius: 10px; padding: 6px 14px; font-size: 15px; }
+  .tdone:disabled { opacity: .5; }
   .dpast { margin: 14px 0 6px; }
   .dpast > summary { cursor: pointer; font-weight: 700; color: var(--sub); padding: 8px 2px; list-style: none; }
   .dpast > summary::before { content: '▸ '; }
@@ -726,12 +728,13 @@
     h += '<h2>要處理的（最久的在前）</h2>';
     var auto = [];
     if (r.doneAuto) auto.push('已開銷貨單 ' + r.doneAuto + ' 項');
-    if (r.expired) auto.push('到貨日已過 ' + r.expired + ' 項');
     if (auto.length) h += '<div class="empty">自動拿掉：' + auto.join('、') + '</div>';
+    if (r.expired) h += '<div class="empty"><em class="dred">到貨日已過還沒處理 ' + r.expired + ' 項</em>（處理好了按 ✓ 才會拿掉）</div>';
     h += r.issues.length ? r.issues.map(function (x) {
       return '<div class="hist' + (x.stale ? ' dstale' : '') + '"><div class="hh"><b>' + esc(x.customer) + '</b><span class="st wait">' + esc(x.why) + '</span></div>'
         + '<div class="hl"><span>' + esc(x.name) + '</span><b>' + (x.qty ? x.qty + esc(x.unit) : '') + '</b></div>'
-        + '<div class="hl sub"><span>' + esc(x.sales) + (x.arrive ? '・' + esc(x.arrive) + ' 到' : '') + '</span><span>' + esc(x.at) + '（' + (x.hours < 1 ? Math.round(x.hours * 60) + ' 分' : x.hours + ' 小時') + '前）</span></div></div>';
+        + '<div class="hl sub"><span>' + esc(x.sales) + (x.arrive ? '・' + (x.late ? '<em class="dred">' + esc(x.arrive) + ' 到（已過）</em>' : esc(x.arrive) + ' 到') : '') + '</span><span>' + esc(x.at) + '（' + (x.hours < 1 ? Math.round(x.hours * 60) + ' 分' : x.hours + ' 小時') + '前）</span></div>'
+        + (x.id ? '<div class="hl"><span></span><button class="tdone" data-id="' + esc(x.id) + '">✓ 處理好了</button></div>' : '') + '</div>';
     }).join('') : shrimp('date', '都處理完了，蝦兄約會去！', '');
     // 每位業務
     h += '<h2>每位業務手上待處理的</h2>';
@@ -755,6 +758,17 @@
     show(h);
     document.getElementById('dRefresh').onclick = startDash;
     document.getElementById('dTest').onclick = function () { dashTest = !dashTest; startDash(); };
+    // v1001-BA 要處理＝待辦：處理好了才拿掉
+    Array.prototype.forEach.call(document.querySelectorAll('.tdone'), function (b) {
+      b.onclick = function () {
+        if (!confirm('這一項處理好了？按確定就從「要處理」拿掉')) return;
+        b.disabled = true; b.textContent = '處理中…';
+        call({ liff: 'dashDone', ids: [b.getAttribute('data-id')], test: dashTest }).then(function (r2) {
+          if (!r2.ok) { alert(r2.error || '沒有成功，請再按一次'); b.disabled = false; b.textContent = '✓ 處理好了'; return; }
+          renderDash(r2);
+        }).catch(function () { alert('沒有成功，請再按一次'); b.disabled = false; b.textContent = '✓ 處理好了'; });
+      };
+    });
     bindTabs();
   }
   /** 打單清單：還沒出貨的 LINE 訂單，列鼎新品號、數量；按品號複製，打完按「已打」（記在這支手機／電腦）。打完客人又改 → 提醒 */
