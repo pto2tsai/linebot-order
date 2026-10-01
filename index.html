@@ -196,6 +196,9 @@
   .dtabs button.on { background: var(--blue); color: #fff; }
   .hintx { color: var(--blue); }
   .bsup { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px dashed var(--line); font-size: 15px; } .bsup:first-of-type { border-top: 0; } .bsup span { flex: 1; } .bsup button { height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--blue); background: #fff; color: var(--blue); font-weight: 700; font-family: inherit; }
+  .sfix { margin-top: 8px; border: 1.5px dashed var(--coral); border-radius: 12px; padding: 8px 10px; background: #FFF7F5; } .sfh { font-size: 13px; color: var(--coral-d); font-weight: 700; margin-bottom: 4px; } .sfix small { color: var(--sub); }
+  .sfb { display: flex; gap: 8px; margin-top: 8px; } .sfb button { flex: 1; height: 40px; border-radius: 10px; border: 1.5px solid var(--blue); background: #fff; color: var(--blue); font-weight: 700; font-family: inherit; font-size: 15px; }
+  .tbtns { justify-content: flex-end !important; gap: 6px; flex-wrap: wrap; } .tfix { height: 34px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--blue); background: #fff; color: var(--blue); font-weight: 700; font-family: inherit; font-size: 14px; }
   .ktip { font-size: 13px; color: var(--sub); margin: 0 4px 6px; line-height: 1.5; }
   .bq { display: flex; gap: 8px; margin: 0 0 10px; } .bq input { flex: 1; min-width: 0; height: 44px; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; font-size: 16px; font-family: inherit; } .bq button { width: 72px; }
   .bstat { background: #EEF4FB; border-radius: 12px; padding: 10px 12px; margin: 0 0 10px; font-size: 14px; line-height: 1.6; } .bstat b { color: var(--blue); }
@@ -421,7 +424,37 @@
   function fmtMoney(n) { return String(Math.round(Number(n) || 0)).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
   function stageOf(o, mode) {
     if (o.shipped || o.sale) return '已出貨';
+    if (!o.lines.length && o.other) return '業務確認中';   // v1001-BS 只有業務還在確認的品項：不是在備貨
     return o.editable ? '可修改' : '備貨中';
+  }
+  /** v1001-BS 業務打開客人的下單連結：業務確認中的品項列出來，可以直接照單出、改到貨日 */
+  function staffBox(o) {
+    var list = state.staffPending[o.due] || [];
+    return '<div class="sfix"><div class="sfh">業務確認中（只有同事看得到這兩顆）</div>'
+      + list.map(function (x) { return '<div class="hl"><span>' + esc(x.name) + '<br><small>' + esc(x.why || '') + '</small></span><b>' + (x.qty ? x.qty + esc(x.unit) : '') + '</b></div>'; }).join('')
+      + '<div class="sfb">' + (list.some(function (x) { return x.fix; }) ? '<button data-sfix="confirm" data-due="' + esc(o.due) + '">✓ 照單出</button>' : '')
+      + '<button data-sfix="date" data-due="' + esc(o.due) + '">📅 改到貨日</button></div></div>';
+  }
+  function staffFix(b) {
+    var act = b.dataset.sfix, due = b.dataset.due;
+    var go = function (newDue) {
+      b.disabled = true; b.textContent = '處理中…';
+      call({ liff: 'staffFix', due: due, act: act, newDue: newDue || '' }).then(function (r) {
+        if (!r.ok) throw new Error(r.error || '沒有成功');
+        return liff.sendMessages([{ type: 'text', text: r.text }]).catch(function () { alert('改好了，但沒能傳到群組，請自己跟客人說一聲'); });
+      }).then(function () { location.reload(); })
+        .catch(function (err) { alert(String(err && err.message || err)); b.disabled = false; b.textContent = act === 'date' ? '📅 改到貨日' : '✓ 照單出'; });
+    };
+    if (act === 'confirm') { if (confirm(dueLabel(due) + ' 到的單照客人下的出貨？\n會排進打單清單，群裡會用您的帳號跟客人說一聲')) go(''); return; }
+    var mask = document.createElement('div');
+    mask.className = 'mask';
+    var t = todayStr();
+    mask.innerHTML = '<div class="sheet"><h3>改到貨日</h3><div class="hint">原本 ' + esc(dueLabel(due)) + '。這天業務確認中的品項一起改，改好排進打單清單，群裡會用您的帳號跟客人說一聲</div>'
+      + '<input type="date" id="sfDue" min="' + t + '" value="' + esc(due >= t ? due : t) + '" style="width:100%;height:48px;font-size:18px;margin:12px 0;border:1px solid var(--line);border-radius:12px;padding:0 12px">'
+      + '<button class="go" id="sfGo">確定</button><button class="back" id="sfNo">取消</button></div>';
+    document.body.appendChild(mask);
+    document.getElementById('sfNo').onclick = function () { mask.remove(); };
+    document.getElementById('sfGo').onclick = function () { var v = document.getElementById('sfDue').value; if (!v) return; mask.remove(); go(v); };
   }
   function cardHtml(o, mode) {
     var btn = mode === 'pending'
@@ -438,8 +471,10 @@
         return '<div class="hl"><span>' + esc(x.name) + ' ' + esc(x.spec) + '</span><b>' + x.qty + esc(x.unit) + '</b></div>' + money;
       }).join('')
       + (o.sale && o.lines.some(function (x) { return x.amount !== undefined; }) ? '<div class="hl total"><span>合計（未稅，以正式銷貨單為準）</span><b>' + fmtMoney(o.lines.reduce(function (a, x) { return a + (x.amount || 0); }, 0)) + ' 元</b></div>' : '')
-      + (o.other ? '<div class="hl sub">另有 ' + o.other + ' 項業務確認中</div>' : '')
-      + (mode === 'pending' && !o.editable ? '<div class="hl sub">已經在備貨了，要改請在群組打字，業務會跟您確認</div>' : '') + '</div>';
+      + (o.other && state.staff && mode === 'pending' && (state.staffPending || {})[o.due] ? staffBox(o)
+        : o.other ? '<div class="hl sub">另有 ' + o.other + ' 項業務確認中</div>' : '')
+      + (mode === 'pending' && !o.editable && o.lines.length ? '<div class="hl sub">已經在備貨了，要改請在群組打字，業務會跟您確認</div>'
+        : mode === 'pending' && !o.lines.length && o.other && !state.staff ? '<div class="hl sub">業務確認好會跟您說，要改請在群組打字</div>' : '') + '</div>';
   }
   function renderTab() {
     var nav = document.getElementById('nav');
@@ -588,6 +623,7 @@
     if (b.dataset.again) { orderAgain(b.dataset.again); return; }
     if (b.dataset.act === 'unmove') { state.moveTo = ''; render(); return; }
     if (b.dataset.act === 'ask') { askStaff(b); return; }
+    if (b.dataset.sfix) { staffFix(b); return; }
     if (b.dataset.cat !== undefined) { state.cat = b.dataset.cat; render(); return; }
     var c = b.dataset.c;
     if (!c) return;
@@ -892,6 +928,7 @@
         if (!r.ok) { fail(r.error || '讀不到資料'); return; }
         state.items = r.items || [];
         state.buy = !!r.buy;   // v1001-BP 叫貨畫面（廠商群）
+        state.staff = !!r.staff; state.staffPending = r.staffPending || {};   // v1001-BS 業務打開客人的連結
         state.catalog = '';   // 清單重拿 → 其他品項也重拿
         state.dues = r.dues || [];
         state.range = r.range || null;
