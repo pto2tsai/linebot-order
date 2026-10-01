@@ -554,12 +554,13 @@
     var words = f.split(/\s+/).filter(String);
     var hit = function (it) { var t = (it.name + ' ' + it.spec).toUpperCase(); return words.every(function (w) { return t.indexOf(w.toUpperCase()) !== -1; }); };
     var moreN = 0, moreCut = 0;
-    [['order', '這天的品項'], ['usual', state.buy ? '這家常叫的品項' : '您常買的品項'], ['rec', '⭐ 推薦品項'], ['old', '以前買過'], ['more', state.buy ? '其他品項（這家沒叫過）' : '其他品項（以前沒買過）']].forEach(function (sec) {
+    [['order', '這天的品項'], ['usual', state.buy ? '這家常叫的品項' : '您常買的品項'], ['rec', '⭐ 推薦品項'], ['old', '以前買過的其他品項'], ['more', state.buy ? '其他品項（這家沒叫過）' : '其他品項（以前沒買過）']].forEach(function (sec) {
       var part = '';
       state.items.forEach(function (it) {
         var sc = state.orig[it.code] ? 'order' : (it.sec || 'usual');
         if (sc !== sec[0]) return;
-        if ((sc === 'old' || sc === 'more') && !f && !state.qty[it.code]) return;   // 以前買過、其他品項：搜尋時才出現（選了就留著）
+        // v1001-BT（蔡阿博 10/2：「應該要顯示所有曾經買過的商品」）以前買過的直接列；沒買過的其他品項才要搜尋
+        if (sc === 'more' && !f && !state.qty[it.code]) return;
         if (f && !hit(it)) return;
         if (sc === 'more' && !state.qty[it.code]) {
           if (f.replace(/\s/g, '').length < 2) return;
