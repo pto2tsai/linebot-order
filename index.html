@@ -802,6 +802,8 @@
       h += r.rows.map(function (x) {
         return '<div class="hist"><div class="hh"><b>' + esc(x.supplier) + '</b><span class="no">' + esc(x.at) + '・' + esc(x.who) + (x.status === '報價' ? '・廠商報價' : '') + '</span></div>'
           + '<div class="hl"><span>' + esc(x.name) + (x.size ? ' ' + esc(x.size) : '') + '</span><b>' + (x.qty ? x.qty + esc(x.unit) : '') + '</b></div>'
+          + (x.code ? '<div class="hl sub"><span>' + esc(x.code) + '</span><span>' + (x.said && x.said.replace(/\s/g, '') !== String(x.name).replace(/\s/g, '') ? '廠商寫：' + esc(x.said) : '') + '</span></div>' : '')
+          + (x.unsure ? '<div class="hl dwarn"><span>⚠ 品項待確認（照廠商寫的記）</span><span></span></div>' : '')
           + (x.price || x.due ? '<div class="hl sub"><span>' + (x.due ? esc(x.due.replace(/^\d{4}-0?(\d+)-0?(\d+)$/, '$1/$2')) + ' 到' : '') + '</span><span>' + (x.price ? x.price + ' ' + esc(x.priceUnit) : '') + '</span></div>' : '')
           + '</div>';
       }).join('');
