@@ -194,6 +194,8 @@
   /* 打單清單（v0929-AB） */
   .dtabs { display: flex; gap: 8px; margin: 4px 0 10px; } .dtabs button { flex: 1; height: 44px; border-radius: 12px; border: 2px solid var(--blue); background: #fff; color: var(--blue); font-size: 16px; font-weight: 700; font-family: inherit; }
   .dtabs button.on { background: var(--blue); color: #fff; }
+  .hintx { color: var(--blue); }
+  .bsup { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px dashed var(--line); font-size: 15px; } .bsup:first-of-type { border-top: 0; } .bsup span { flex: 1; } .bsup button { height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--blue); background: #fff; color: var(--blue); font-weight: 700; font-family: inherit; }
   .ktip { font-size: 13px; color: var(--sub); margin: 0 4px 6px; line-height: 1.5; }
   .bq { display: flex; gap: 8px; margin: 0 0 10px; } .bq input { flex: 1; min-width: 0; height: 44px; border: 1px solid var(--line); border-radius: 12px; padding: 0 12px; font-size: 16px; font-family: inherit; } .bq button { width: 72px; }
   .bstat { background: #EEF4FB; border-radius: 12px; padding: 10px 12px; margin: 0 0 10px; font-size: 14px; line-height: 1.6; } .bstat b { color: var(--blue); }
@@ -398,7 +400,7 @@
       + (it.badge ? '<span class="tag badge">' + esc(it.badge) + '</span>' : '')
       + (out ? '<span class="tag out">缺貨</span>' : it.stock === '安排生產' ? '<span class="tag make">等待產出</span>' : '');
     return '<div class="item' + itemCls(it.code) + (out ? ' off' : '') + '">'
-      + '<div class="name">' + esc(it.name) + '</div><div class="spec" title="' + esc(it.spec) + '">' + esc(it.spec) + '</div>'
+      + '<div class="name">' + esc(it.name) + '</div><div class="spec" title="' + esc(it.spec) + '">' + esc(it.spec) + (it.hint ? '　<span class="hintx">' + esc(it.hint) + '</span>' : '') + '</div>'
       + (tags ? '<div class="tagrow">' + tags + '</div>' : '')
       + (out ? '' : '<div class="qty"><button class="minus" data-c="' + esc(it.code) + '" data-d="-1"' + (q ? '' : ' disabled') + ' aria-label="減少">−</button>'
         + '<input inputmode="numeric" pattern="[0-9]*" data-c="' + esc(it.code) + '" value="' + (q || '') + '" placeholder="0" aria-label="數量">'
@@ -441,7 +443,7 @@
   }
   function renderTab() {
     var nav = document.getElementById('nav');
-    nav.hidden = false;
+    nav.hidden = !!state.buy;   // 叫貨畫面沒有待出貨、歷史（v1001-BP）
     var pend = pendingList();
     Array.prototype.forEach.call(nav.querySelectorAll('button'), function (b) {
       b.classList.toggle('on', b.dataset.tab === state.tab);
@@ -517,7 +519,7 @@
     var words = f.split(/\s+/).filter(String);
     var hit = function (it) { var t = (it.name + ' ' + it.spec).toUpperCase(); return words.every(function (w) { return t.indexOf(w.toUpperCase()) !== -1; }); };
     var moreN = 0, moreCut = 0;
-    [['order', '這天的品項'], ['usual', '您常買的品項'], ['rec', '⭐ 推薦品項'], ['old', '以前買過'], ['more', '其他品項（以前沒買過）']].forEach(function (sec) {
+    [['order', '這天的品項'], ['usual', state.buy ? '這家常叫的品項' : '您常買的品項'], ['rec', '⭐ 推薦品項'], ['old', '以前買過'], ['more', state.buy ? '其他品項（這家沒叫過）' : '其他品項（以前沒買過）']].forEach(function (sec) {
       var part = '';
       state.items.forEach(function (it) {
         var sc = state.orig[it.code] ? 'order' : (it.sec || 'usual');
@@ -539,9 +541,10 @@
       if (sec[0] === 'more' && f.replace(/\s/g, '').length >= 2 && state.catalog === 'loading') html += '<div class="hint" style="text-align:center">正在找其他品項…</div>';
       if (sec[0] === 'order' && o && o.other && !f) html += '<div class="hint">這天還有 ' + o.other + ' 項業務確認中，要改請在群組打字</div>';
     });
-    if (!shown) html += f ? shrimp('sweat', '找不到「' + esc(f) + '」', '沒買過的品項，可以請業務幫您找') : shrimp('stand', '還沒有常買的品項', '請直接在群組打字下單');
+    if (!shown) html += state.buy ? (f ? shrimp('sweat', '找不到「' + esc(f) + '」', '主檔沒有的請直接在群裡打字叫貨') : shrimp('stand', '這家還沒叫過品項', '在上面打品名找，例如「白蝦 20/30」'))
+      : f ? shrimp('sweat', '找不到「' + esc(f) + '」', '沒買過的品項，可以請業務幫您找') : shrimp('stand', '還沒有常買的品項', '請直接在群組打字下單');
     // v0929-AG（蔡阿博 9/28 有吉：「不能直接上面選嗎」）：搜尋找不到要的 → 一鍵請業務找，找到加進這家的下單畫面
-    if (askText()) html += (shown ? '<div class="hint" style="text-align:center;margin-top:14px">沒有您要的？</div>' : '')
+    if (askText() && !state.buy) html += (shown ? '<div class="hint" style="text-align:center;margin-top:14px">沒有您要的？</div>' : '')
       + '<button class="askbtn" data-act="ask">🔍 請業務幫我找「' + esc(askText()) + '」</button>';
     html += '<h2>備註（選填）</h2><textarea class="note" id="note" maxlength="100" placeholder="例如：特殊包裝、送貨時段…">' + esc(state.note) + '</textarea>';
     show(html);
@@ -663,7 +666,7 @@
     if (!list.length && !state.moveTo) return;
     var mask = document.createElement('div');
     mask.className = 'mask';
-    mask.innerHTML = '<div class="sheet"><h3>' + (edit ? '確認修改' + (o.no ? ' #' + esc(o.no) : '') : '確認訂單') + '</h3><ol>' + (list.length ? '' : '<li>品項、件數不變</li>') + list.map(function (x) {
+    mask.innerHTML = '<div class="sheet"><h3>' + (edit ? '確認修改' + (o.no ? ' #' + esc(o.no) : '') : state.buy ? '確認叫貨' : '確認訂單') + '</h3><ol>' + (list.length ? '' : '<li>品項、件數不變</li>') + list.map(function (x) {
       if (!edit) return '<li>' + esc(x.name) + ' ' + esc(x.spec) + '　<b>' + state.qty[x.code] + esc(x.unit) + '</b></li>';
       var u = esc(x.it.unit);
       var what = !x.q ? '<b style="color:#e35f4a">不要了</b>' : !x.cur ? '<b>' + x.q + u + '</b>（新增）' : x.cur + u + ' → <b>' + x.q + u + '</b>';
@@ -688,13 +691,13 @@
         })
         .then(function () {
           mask.remove(); bar.hidden = true; dueBar.hidden = true; document.getElementById('nav').hidden = true; document.getElementById('searchWrap').hidden = true;
-          show(shrimp('cheer', '✅ ' + (edit ? '修改' : '訂單') + '已送出！', '小幫手會在群組回覆確認'));
+          show(state.buy ? shrimp('cheer', '✅ 叫貨單已送出！', '已記進進貨紀錄（小幫手在廠商群不說話）') : shrimp('cheer', '✅ ' + (edit ? '修改' : '訂單') + '已送出！', '小幫手會在群組回覆確認'));
           setTimeout(function () { try { liff.closeWindow(); } catch (e) {} }, 1200);
         })
         .catch(function (err) {
           go.disabled = false; go.textContent = edit ? '確定修改' : '確定送出';
           var m = String(err && err.message || err);
-          if (/sendMessages|permission|context|chat/i.test(m) || (err && err.code)) m = '請從 LINE 群組裡的下單連結打開，才能把訂單傳到群組';
+          if (/sendMessages|permission|context|chat/i.test(m) || (err && err.code)) m = state.buy ? '請從廠商群公告裡的叫貨連結打開，才能把叫貨單傳到群組' : '請從 LINE 群組裡的下單連結打開，才能把訂單傳到群組';
           alert(m);
         });
     };
@@ -797,6 +800,9 @@
     call({ liff: 'purchase', q: q }).then(function (r) {
       if (!r.ok) { box.innerHTML = '<div class="empty">' + esc(r.error || '讀不到') + '</div>'; return; }
       var h = '';
+      if (r.suppliers && r.suppliers.length && !q) h += '<details class="dpast"><summary>📋 叫貨連結（貼到廠商群公告）<span class="h2tip">' + r.suppliers.length + ' 家</span></summary><div class="hist">'
+        + r.suppliers.map(function (x, i) { return '<div class="bsup"><span>' + esc(x.name) + '</span><button data-link="' + esc(x.link) + '">複製連結</button></div>'; }).join('')
+        + '<div class="ktip">只有同事打得開。要從那個廠商群裡點開，送出的叫貨單才會傳到那個群。</div></div></details>';
       if (r.stats) h += '<div class="bstat">最近一次 <b>' + r.stats.latest + '</b> ' + esc(r.stats.latestUnit || '') + '（' + esc(r.stats.latestAt) + '・' + esc(r.stats.latestSup) + '）<br>一年內最低 <b>' + r.stats.min + '</b>・最高 <b>' + r.stats.max + '</b>（有價格的 ' + r.stats.n + ' 筆）</div>';
       if (!r.rows.length) h += '<div class="empty">' + (q ? '查不到「' + esc(q) + '」' : '最近 30 天還沒有進貨紀錄') + '</div>';
       h += r.rows.map(function (x) {
@@ -808,6 +814,9 @@
           + '</div>';
       }).join('');
       box.innerHTML = h;
+      Array.prototype.forEach.call(box.querySelectorAll('[data-link]'), function (b) {
+        b.onclick = function () { copyText(b.getAttribute('data-link')).then(function () { b.textContent = '已複製'; setTimeout(function () { b.textContent = '複製連結'; }, 1200); }); };
+      });
     }).catch(function (err) { box.innerHTML = '<div class="empty">讀不到：' + esc(err && err.message || err) + '</div>'; });
   }
   /** 打單清單：還沒出貨的 LINE 訂單，列鼎新品號、數量；按品號複製，打完按「已打」（記在這支手機／電腦）。打完客人又改 → 提醒 */
@@ -882,6 +891,7 @@
       return call({ liff: 'list' }).then(function (r) {
         if (!r.ok) { fail(r.error || '讀不到資料'); return; }
         state.items = r.items || [];
+        state.buy = !!r.buy;   // v1001-BP 叫貨畫面（廠商群）
         state.catalog = '';   // 清單重拿 → 其他品項也重拿
         state.dues = r.dues || [];
         state.range = r.range || null;
@@ -891,12 +901,13 @@
         state.pending = r.pending || null;
         state.sales = r.sales || [];
         document.getElementById('searchWrap').hidden = false;
-        document.getElementById('title').textContent = (r.customer ? r.customer + ' ' : '') + '下單';
+        document.getElementById('title').textContent = state.buy ? '叫貨給 ' + (r.customer || '廠商') : (r.customer ? r.customer + ' ' : '') + '下單';
+        if (state.buy) document.title = '叫貨';
         // 按〔修改〕進來 → 選最近下的那張；一般 → 最近的出貨日（那天有單就帶出來）
         var normal = state.dues.filter(function (d) { return (!state.earliest || d.value >= state.earliest) && !lockedOf(d.value); })[0];
         var first = qs.get('m') === 'edit' && r.latest ? r.latest : (normal ? normal.value : (state.dues.length ? state.dues[0].value : ''));
         select(first, false);
-        document.querySelector('main').classList.add('tabbed');
+        if (!state.buy) document.querySelector('main').classList.add('tabbed');
         renderTab();
       });
     }).catch(function (err) { fail('打不開：' + (err && err.message || err) + '，請關掉重新打開'); });
