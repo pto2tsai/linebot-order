@@ -125,6 +125,11 @@
   .ordbox .no { color: var(--sub); font-size: 14px; }
   .ordbox .to { color: var(--coral-d); }
   .ordbox .tip { flex: none; font-size: 13px; color: var(--sub); white-space: nowrap; }
+  .ordbox .ordtip { font-size: 13px; color: var(--sub); margin: 10px 0 2px; padding-top: 10px; border-top: 1px solid var(--line); }
+  .ordbox .item { margin: 6px 0 0; background: #f3f7fd; }
+  .ordbox .item.on { border-color: transparent; }
+  .ordbox .item.chg { border-color: var(--coral); background: #fff8f6; }
+  .ordbox .hint { margin-top: 8px; }
   .sheet .alt { width: 100%; max-width: 640px; display: block; margin: 10px auto 0; height: 52px; border: 2px solid var(--blue); border-radius: 14px; background: #fff; font-size: 18px; font-weight: 700; color: var(--blue); }
   h2 .h2tip { float: right; font-size: 13px; font-weight: 400; color: var(--sub); margin-top: 2px; }
   .ordbox button { flex: none; padding: 8px 14px; font-size: 15px; border-radius: 10px; border: 1px solid var(--blue); background: #fff; color: var(--blue); font-weight: 700; }
@@ -133,6 +138,7 @@
   .hist .hh { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
   .hist .no { color: var(--sub); font-size: 13px; }
   .hist .st { margin-left: auto; }
+  .hist .go2 { margin-left: auto; }   /* 可修改的不放狀態標籤，「修改」直接靠右 */
   .hist .go2 { padding: 6px 12px; font-size: 14px; border-radius: 10px; border: 0; background: var(--blue); color: #fff; font-weight: 700; }
   .hist .hl { display: flex; justify-content: space-between; gap: 10px; font-size: 15px; padding: 3px 0; border-top: 1px dashed var(--line); }
   .hist .hl span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -229,7 +235,7 @@
 <main>
 <div id="app"><div class="load"><div class="stage"><div class="road"></div><div class="lane"></div><span class="wind w1"></span><span class="wind w2"></span><span class="wind w3"></span><span class="wind w4"></span><div class="ride"><div class="jump"><img class="rider" src="rider.png" alt="蝦兄騎車送貨中"></div></div></div><div class="t">正在準備您常買的品項<i>…</i></div><div class="sm">大約 3～5 秒</div></div></div></main>
 <div class="bar" id="bar" hidden><button id="send" disabled></button></div>
-<nav class="nav" id="nav" hidden><button data-tab="order" class="on"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2.2l2.1 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.2"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/></svg>下單</button><button data-tab="pending"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.5h11v9h-11z"/><path d="M13.5 9.5h4l3 3.2v2.8h-7"/><circle cx="6.5" cy="17.5" r="1.7"/><circle cx="17" cy="17.5" r="1.7"/></svg>待出貨</button><button data-tab="history"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3.5" width="14" height="17" rx="2"/><path d="M9 3.5h6v2.5H9z"/><path d="M8.5 10.5h7M8.5 14h7M8.5 17.5h4"/></svg>歷史訂單</button></nav>
+<nav class="nav" id="nav" hidden><button data-tab="order" class="on"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 4h2.2l2.1 10.2a1.5 1.5 0 0 0 1.5 1.2h8.4a1.5 1.5 0 0 0 1.5-1.1L20.5 8H6.2"/><circle cx="9.5" cy="19.5" r="1.3"/><circle cx="17" cy="19.5" r="1.3"/></svg>下單</button><button data-tab="pending"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.5h11v9h-11z"/><path d="M13.5 9.5h4l3 3.2v2.8h-7"/><circle cx="6.5" cy="17.5" r="1.7"/><circle cx="17" cy="17.5" r="1.7"/></svg>已下單</button><button data-tab="history"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3.5" width="14" height="17" rx="2"/><path d="M9 3.5h6v2.5H9z"/><path d="M8.5 10.5h7M8.5 14h7M8.5 17.5h4"/></svg>歷史訂單</button></nav>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js" charset="utf-8"></script>
 <script>
 (function () {
@@ -464,7 +470,7 @@
     var head = o.sale ? esc(o.label) + ' 出貨' : esc(o.label) + ' 到';
     return '<div class="hist"><div class="hh"><b>' + head + '</b>'
       + (o.sale ? '<span class="no">銷貨單</span>' : o.no ? '<span class="no">#' + esc(o.no) + '</span>' : '')
-      + '<span class="st ' + (o.shipped || o.sale ? 'ship' : 'wait') + '">' + stageOf(o, mode) + '</span>' + btn + '</div>'
+      + (mode === 'pending' && o.editable ? '' : '<span class="st ' + (o.shipped || o.sale ? 'ship' : 'wait') + '">' + stageOf(o, mode) + '</span>') + btn + '</div>'
       + o.lines.map(function (x) {
         // 銷貨單有單價、金額就寫在品項下面（蔡阿博 9/27）
         var money = x.amount !== undefined ? '<div class="hl money"><span>' + (x.price !== undefined ? '單價 ' + fmtMoney(x.price) + (x.priceUnit ? '/' + esc(x.priceUnit) : '') : '') + '</span><span>' + fmtMoney(x.amount) + ' 元</span></div>' : '';
@@ -494,12 +500,14 @@
     bar.hidden = !ordering;
     if (ordering) { render(); return; }
     document.getElementById('subtitle').textContent = state.tab === 'pending' ? '還沒出貨的單，點「修改」可以改' : '點「再訂一次」帶入品項';
-    if (state.tab === 'pending') show(pend.length ? pend.map(function (o) { return cardHtml(o, 'pending'); }).join('') : shrimp('stand', '目前沒有待出貨的單', '要叫貨請點下面「下單」'));
-    else { var hl = historyList(); show(hl.length ? hl.map(function (o) { return cardHtml(o, 'history'); }).join('') : shrimp('stand', '還沒有訂單', '')); }
+    if (state.tab === 'pending') show(pend.length ? pend.map(function (o) { return cardHtml(o, 'pending'); }).join('') : shrimp('stand', '目前沒有還沒出貨的單', '要叫貨請點下面「下單」'));
+    else { var hl = historyList(); show(hl.length ? hl.map(function (o) { return cardHtml(o, 'history'); }).join('') : shrimp('stand', '還沒有出貨過的單', '還沒出貨的單在「已下單」')); }
   }
   /** 歷史訂單：LINE 下的單＋銷貨單（蔡阿博 9/27：剛開始用的客人也看得到以前叫過什麼），新的在前 */
+  // v1001-BZ（蔡阿博 10/2）底下改成「下單／已下單／歷史訂單」：還沒出貨的只在「已下單」，歷史不重複列
   function historyList() {
-    var out = state.history.map(function (o) { return Object.assign({ key: o.due, sortKey: o.due }, o); });
+    var t = todayStr();
+    var out = state.history.filter(function (o) { return o.shipped || o.due < t; }).map(function (o) { return Object.assign({ key: o.due, sortKey: o.due }, o); });
     (state.sales || []).forEach(function (x) { out.push({ key: 'S:' + x.d, sortKey: x.d, sale: true, due: x.d, label: x.label, lines: x.lines, other: 0 }); });
     return out.sort(function (a, b) { return a.sortKey < b.sortKey ? 1 : a.sortKey > b.sortKey ? -1 : 0; });
   }
@@ -509,7 +517,7 @@
     var h = historyList().filter(function (o) { return o.key === due; })[0];
     if (!h) return;
     var free = state.dues.filter(function (d) { return (!state.earliest || d.value >= state.earliest) && !orderOf(d.value) && !lockedOf(d.value); })[0];
-    if (!free) { alert('最近幾天都已經有單了，請到「待出貨」修改那天的單'); return; }
+    if (!free) { alert('最近幾天都已經有單了，請到「已下單」修改那天的單'); return; }
     state.tab = 'order';
     select(free.value, false);
     var has = {}, miss = 0;
@@ -530,12 +538,15 @@
     if (o) {
       // 蔡阿博 9/27：說明放到「這天的品項」右邊；「改到別天」改叫「修改日期」
       // 蔡阿博 9/27：藍框簡單就好，一行
-      html += '<div class="ordbox"><div class="top1"><div><b>'
+      // v1001-BZ（蔡阿博 10/2：「應該二個方框整合成一個方框才對，一樣的資訊分成二個部分會搞混」）單號和這天的品項放同一個藍框
+      html += '\u0000ORD\u0000';
+      var ordHead = '<div class="top1"><div><b>'
         + (state.moveTo ? esc(dueLabel(state.due)) + ' → <span class="to">' + esc(dueLabel(state.moveTo)) + '</span>'
           : esc(dueLabel(state.due)) + ' 的單')
         + '</b>' + (o.no ? ' <span class="no">#' + esc(o.no) + '</span>' : '') + '</div>'
-        + (state.moveTo ? '<button data-act="unmove">不改日期</button>' : '<span class="tip">改日期：點上面日期</span>') + '</div></div>';
+        + (state.moveTo ? '<button data-act="unmove">不改日期</button>' : '<span class="tip">改日期：點上面日期</span>') + '</div>';
     }
+    var ordPart = '', ordHint = '';
     if (state.againFrom && !o) html += '<div class="ordbox">已帶入 ' + esc(state.againFrom) + ' 的品項<div class="sub">看過件數、到貨日，再按下面「送出」</div></div>';
     var cats = [];
     state.items.forEach(function (it) { if (it.sec === 'old' || it.sec === 'more') return; var c = catOf(it); if (cats.indexOf(c) === -1) cats.push(c); });
@@ -572,16 +583,22 @@
         shown++;
         part += itemHtml(it);
       });
-      if (part) html += '<h2>' + sec[1] + (sec[0] === 'order' ? '<span class="h2tip">改件數、減到 0＝不要了</span>' : '') + '</h2>' + part;
+      if (sec[0] === 'order' && o) {
+        ordPart = part;
+        if (o.other && !f) ordHint = '<div class="hint">這天還有 ' + o.other + ' 項業務確認中，要改請在群組打字</div>';
+        return;
+      }
+      if (part) html += '<h2>' + sec[1] + '</h2>' + part;
       if (sec[0] === 'more' && moreCut) html += '<div class="hint" style="text-align:center">還有 ' + moreCut + ' 項，多打幾個字找得更準（例如規格「60/70」）</div>';
       if (sec[0] === 'more' && f.replace(/\s/g, '').length >= 2 && state.catalog === 'loading') html += '<div class="hint" style="text-align:center">正在找其他品項…</div>';
-      if (sec[0] === 'order' && o && o.other && !f) html += '<div class="hint">這天還有 ' + o.other + ' 項業務確認中，要改請在群組打字</div>';
     });
     if (!shown) html += state.buy ? (f ? shrimp('sweat', '找不到「' + esc(f) + '」', '主檔沒有的請直接在群裡打字叫貨') : shrimp('stand', '這家還沒叫過品項', '在上面打品名找，例如「白蝦 20/30」'))
       : f ? shrimp('sweat', '找不到「' + esc(f) + '」', '沒買過的品項，可以請業務幫您找') : shrimp('stand', '還沒有常買的品項', '請直接在群組打字下單');
     // v0929-AG（蔡阿博 9/28 有吉：「不能直接上面選嗎」）：搜尋找不到要的 → 一鍵請業務找，找到加進這家的下單畫面
     if (askText() && !state.buy) html += (shown ? '<div class="hint" style="text-align:center;margin-top:14px">沒有您要的？</div>' : '')
       + '<button class="askbtn" data-act="ask">🔍 請業務幫我找「' + esc(askText()) + '」</button>';
+    if (o) html = html.replace('\u0000ORD\u0000', '<div class="ordbox">' + ordHead
+      + (ordPart ? '<div class="ordtip">改件數、減到 0＝不要了</div>' + ordPart : '') + ordHint + '</div>');
     html += '<h2>備註（選填）</h2><textarea class="note" id="note" maxlength="100" placeholder="例如：特殊包裝、送貨時段…">' + esc(state.note) + '</textarea>';
     show(html);
     updateBar();
