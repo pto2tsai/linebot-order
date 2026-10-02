@@ -943,7 +943,7 @@
   /***** v1001-CH 秒開（蔡阿博 10/2：「怎麼樣才可以秒開」選 A）*****
    * 手機記住這個群上次打開的資料（localStorage，一天內有效）→ 一打開先顯示（不用等 LINE 登入、小幫手），
    * 背景拿最新的再換掉；最新的回來前「送出」顯示「更新中…」不能按。送出後清掉，下次等最新的。 */
-  var SNAP_MS = 24 * 3600 * 1000;
+  var SNAP_MS = 7 * 24 * 3600 * 1000;   // 蔡阿博 10/2：客人隔幾天才開也要秒開 → 記 7 天
   function snapKey(g) { return 'liffSnap1:' + g; }
   function snapGet(g) {
     try { var x = JSON.parse(localStorage.getItem(snapKey(g)) || 'null'); return x && x.r && Date.now() - x.at < SNAP_MS ? x.r : null; } catch (e) { return null; }
@@ -980,6 +980,8 @@
     document.getElementById('searchWrap').hidden = false;
     document.getElementById('title').textContent = state.buy ? '叫貨給 ' + (r.customer || '廠商') : (r.customer ? r.customer + ' ' : '') + '下單';
     if (state.buy) document.title = '叫貨';
+    // 記住的畫面是幾天前的：客人先選的那天如果已經不能選了 → 照最新的重選
+    if (keep && !state.dues.some(function (d) { return d.value === state.due; }) && !orderOf(state.due)) keep = false;
     if (keep) {
       var o = cur();
       state.orig = {};
