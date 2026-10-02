@@ -607,6 +607,8 @@
   function updateBar() {
     renderDues();
     bar.hidden = false;
+    // v1001-CH 先顯示手機記住的上次畫面：最新資料回來前不能送出（不用舊資料下單）
+    if (state.stale) { sendBtn.disabled = true; sendBtn.textContent = '更新中…'; return; }
     if (cur()) {
       var k = changes().length + (state.moveTo ? 1 : 0);
       sendBtn.disabled = !k;
@@ -741,6 +743,7 @@
       }) })
         .then(function (r) {
           if (!r.ok) throw new Error(r.error || '送出失敗');
+          snapDrop();   // 送出後畫面會變，下次打開等最新的，不先顯示舊的
           return liff.sendMessages([{ type: 'text', text: r.text }]);
         })
         .then(function () {
@@ -937,8 +940,66 @@
     document.body.removeChild(a);
   }
 
+  /***** v1001-CH 秒開（蔡阿博 10/2：「怎麼樣才可以秒開」選 A）*****
+   * 手機記住這個群上次打開的資料（localStorage，一天內有效）→ 一打開先顯示（不用等 LINE 登入、小幫手），
+   * 背景拿最新的再換掉；最新的回來前「送出」顯示「更新中…」不能按。送出後清掉，下次等最新的。 */
+  var SNAP_MS = 24 * 3600 * 1000;
+  function snapKey(g) { return 'liffSnap1:' + g; }
+  function snapGet(g) {
+    try { var x = JSON.parse(localStorage.getItem(snapKey(g)) || 'null'); return x && x.r && Date.now() - x.at < SNAP_MS ? x.r : null; } catch (e) { return null; }
+  }
+  function snapPut(g, r) { try { localStorage.setItem(snapKey(g), JSON.stringify({ at: Date.now(), r: r })); } catch (e) { } }
+  function snapDrop() { try { localStorage.removeItem(snapKey(state.g)); } catch (e) { } }
+  /** LIFF 剛打開時網址的 g 還包在 liff.state 裡 */
+  function groupFromUrl() {
+    var qs = new URLSearchParams(location.search);
+    if (qs.get('g')) return qs.get('g');
+    var st = qs.get('liff.state');
+    if (st) { try { return new URLSearchParams(st.replace(/^[^?]*\?/, '')).get('g') || ''; } catch (e) { } }
+    return '';
+  }
+  function viewFromUrl() {
+    var qs = new URLSearchParams(location.search), st = qs.get('liff.state') || '';
+    return qs.get('view') || (/[?&]view=dash/.test(st) ? 'dash' : '');
+  }
+
+  function applyList(r, cached, mEdit) {
+    var keep = !cached && state.stale && dirty();   // 等最新資料的時候客人已經在選了 → 選的留著，只換資料
+    state.items = r.items || [];
+    state.buy = !!r.buy;   // v1001-BP 叫貨畫面（廠商群）
+    state.staff = !!r.staff; state.staffPending = r.staffPending || {};   // v1001-BS 業務打開客人的連結
+    state.catalog = '';   // 清單重拿 → 其他品項也重拿
+    state.dues = r.dues || [];
+    state.range = r.range || null;
+    state.earliest = r.earliest || '';
+    state.orders = r.orders || [];
+    state.history = r.history || [];
+    state.pending = r.pending || null;
+    state.sales = r.sales || [];
+    state.stale = !!cached;
+    document.getElementById('searchWrap').hidden = false;
+    document.getElementById('title').textContent = state.buy ? '叫貨給 ' + (r.customer || '廠商') : (r.customer ? r.customer + ' ' : '') + '下單';
+    if (state.buy) document.title = '叫貨';
+    if (keep) {
+      var o = cur();
+      state.orig = {};
+      if (o) Object.keys(o.items).forEach(function (c) { state.orig[c] = o.items[c]; });
+    } else {
+      // 按〔修改〕進來 → 選最近下的那張；一般 → 最近的出貨日（那天有單就帶出來）
+      var normal = state.dues.filter(function (d) { return (!state.earliest || d.value >= state.earliest) && !lockedOf(d.value); })[0];
+      var first = mEdit && r.latest ? r.latest : (normal ? normal.value : (state.dues.length ? state.dues[0].value : ''));
+      select(first, false);
+    }
+    if (!state.buy) document.querySelector('main').classList.add('tabbed');
+    renderTab();
+  }
+
   function start() {
     if (!API || !LIFF_ID || typeof liff === 'undefined') { fail('下單畫面設定不完整，請跟業務說'); return; }
+    var gPre = viewFromUrl() === 'dash' ? '' : groupFromUrl();
+    var mPre = /(^|[?&])m=edit/.test(decodeURIComponent(location.search));
+    var snap = gPre ? snapGet(gPre) : null;
+    if (snap) { state.g = gPre; applyList(snap, true, mPre); }
     liff.init({ liffId: LIFF_ID }).then(function () {
       if (!liff.isLoggedIn()) { liff.login({ redirectUri: location.href }); return; }
       // 用 Safari、Chrome、電腦打開（不是在 LINE 裡）：上次登入的身分證 1 小時就過期，LINE 不會自己換新
@@ -946,30 +1007,12 @@
       if (!liff.isInClient() && idExpired()) { relogin(); return; }
       var qs = new URLSearchParams(location.search);
       if (qs.get('view') === 'dash') { startDash(); return; }   // 主管看板（v0929-P）
-      state.g = qs.get('g') || '';
+      state.g = qs.get('g') || gPre || '';
       if (!state.g) { fail('請從 LINE 群組裡的下單連結打開'); return; }
       return call({ liff: 'list' }).then(function (r) {
-        if (!r.ok) { fail(r.error || '讀不到資料'); return; }
-        state.items = r.items || [];
-        state.buy = !!r.buy;   // v1001-BP 叫貨畫面（廠商群）
-        state.staff = !!r.staff; state.staffPending = r.staffPending || {};   // v1001-BS 業務打開客人的連結
-        state.catalog = '';   // 清單重拿 → 其他品項也重拿
-        state.dues = r.dues || [];
-        state.range = r.range || null;
-        state.earliest = r.earliest || '';
-        state.orders = r.orders || [];
-        state.history = r.history || [];
-        state.pending = r.pending || null;
-        state.sales = r.sales || [];
-        document.getElementById('searchWrap').hidden = false;
-        document.getElementById('title').textContent = state.buy ? '叫貨給 ' + (r.customer || '廠商') : (r.customer ? r.customer + ' ' : '') + '下單';
-        if (state.buy) document.title = '叫貨';
-        // 按〔修改〕進來 → 選最近下的那張；一般 → 最近的出貨日（那天有單就帶出來）
-        var normal = state.dues.filter(function (d) { return (!state.earliest || d.value >= state.earliest) && !lockedOf(d.value); })[0];
-        var first = qs.get('m') === 'edit' && r.latest ? r.latest : (normal ? normal.value : (state.dues.length ? state.dues[0].value : ''));
-        select(first, false);
-        if (!state.buy) document.querySelector('main').classList.add('tabbed');
-        renderTab();
+        if (!r.ok) { snapDrop(); state.stale = false; fail(r.error || '讀不到資料'); return; }
+        snapPut(state.g, r);
+        applyList(r, false, qs.get('m') === 'edit');
       });
     }).catch(function (err) { fail('打不開：' + (err && err.message || err) + '，請關掉重新打開'); });
   }
