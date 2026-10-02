@@ -585,7 +585,7 @@
       });
       if (sec[0] === 'order' && o) {
         ordPart = part;
-        if (o.other && !f) ordHint = '<div class="hint">這天還有 ' + o.other + ' 項業務確認中，要改請在群組打字</div>';
+        if (o.other && !f) ordHint = '<div class="hint">這天還有 ' + o.other + ' 項業務確認中' + (state.staff ? '（改日期會一起改）' : '，要改請在群組打字') + '</div>';
         return;
       }
       if (part) html += '<h2>' + sec[1] + '</h2>' + part;
