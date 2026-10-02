@@ -771,12 +771,13 @@
     }).catch(function (err) { fail('讀不到：' + (err && err.message || err)); });
   }
   function renderDash(r) {
+    if (dashView === 'buy' && !r.canBuy) dashView = 'dash';   // v1001-CD 進貨分頁只給「看進價」打勾的人
     document.getElementById('subtitle').textContent = r.at + ' 更新';
-    var tabs = '<div class="dtabs"><button id="tDash"' + (dashView === 'dash' ? ' class="on"' : '') + '>看板</button><button id="tKey"' + (dashView === 'key' ? ' class="on"' : '') + '>打單清單' + (r.keyin && r.keyin.length ? '（' + r.keyin.length + '）' : '') + '</button><button id="tBuy"' + (dashView === 'buy' ? ' class="on"' : '') + '>進貨</button></div>';
+    var tabs = '<div class="dtabs"><button id="tDash"' + (dashView === 'dash' ? ' class="on"' : '') + '>看板</button><button id="tKey"' + (dashView === 'key' ? ' class="on"' : '') + '>打單清單' + (r.keyin && r.keyin.length ? '（' + r.keyin.length + '）' : '') + '</button>' + (r.canBuy ? '<button id="tBuy"' + (dashView === 'buy' ? ' class="on"' : '') + '>進貨</button>' : '') + '</div>';
     var bindTabs = function () {
       document.getElementById('tDash').onclick = function () { dashView = 'dash'; try { localStorage.setItem('dashView', 'dash'); } catch (e) { } renderDash(r); };
       document.getElementById('tKey').onclick = function () { dashView = 'key'; try { localStorage.setItem('dashView', 'key'); } catch (e) { } renderDash(r); };
-      document.getElementById('tBuy').onclick = function () { dashView = 'buy'; try { localStorage.setItem('dashView', 'buy'); } catch (e) { } renderDash(r); };
+      if (document.getElementById('tBuy')) document.getElementById('tBuy').onclick = function () { dashView = 'buy'; try { localStorage.setItem('dashView', 'buy'); } catch (e) { } renderDash(r); };
     };
     if (dashView === 'key') { renderKeyin(r, tabs); bindTabs(); return; }
     if (dashView === 'buy') { renderBuy(tabs, buyQ); bindTabs(); return; }
