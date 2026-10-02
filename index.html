@@ -544,7 +544,7 @@
         + (state.moveTo ? esc(dueLabel(state.due)) + ' → <span class="to">' + esc(dueLabel(state.moveTo)) + '</span>'
           : esc(dueLabel(state.due)) + ' 的單')
         + '</b>' + (o.no ? ' <span class="no">#' + esc(o.no) + '</span>' : '') + '</div>'
-        + (state.moveTo ? '<button data-act="unmove">不改日期</button>' : '<span class="tip">改日期：點上面日期</span>') + '</div>';
+        + (state.moveTo ? '<button data-act="unmove">不改日期</button>' : !Object.keys(o.items).length && !state.staff ? '<span class="tip">業務確認中，要改請在群組說</span>' : '<span class="tip">改日期：點上面日期</span>') + '</div>';
     }
     var ordPart = '', ordHint = '';
     if (state.againFrom && !o) html += '<div class="ordbox">已帶入 ' + esc(state.againFrom) + ' 的品項<div class="sub">看過件數、到貨日，再按下面「送出」</div></div>';
