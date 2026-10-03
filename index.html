@@ -869,7 +869,7 @@
       if (r.stats) h += '<div class="bstat">最近一次 <b>' + r.stats.latest + '</b> ' + esc(r.stats.latestUnit || '') + '（' + esc(r.stats.latestAt) + '・' + esc(r.stats.latestSup) + '）<br>一年內最低 <b>' + r.stats.min + '</b>・最高 <b>' + r.stats.max + '</b>（有價格的 ' + r.stats.n + ' 筆）</div>';
       if (!r.rows.length) h += '<div class="empty">' + (q ? '查不到「' + esc(q) + '」' : '最近 30 天還沒有進貨紀錄') + '</div>';
       h += r.rows.map(function (x) {
-        return '<div class="hist"><div class="hh"><b>' + esc(x.supplier) + '</b><span class="no">' + esc(x.at) + (x.who ? '・' + esc(x.who) : '') + (x.status === '報價' ? '・廠商報價' : x.status === '鼎新進貨' ? '・鼎新進貨' : '') + '</span></div>'
+        return '<div class="hist"><div class="hh"><b>' + esc(x.supplier) + '</b><span class="no">' + esc(x.at) + (x.who ? '・' + esc(x.who) : '') + (x.status === '報價' ? '・廠商報價' : x.status === '鼎新進貨' ? '・鼎新進貨' : x.status === '出貨安排' ? '・出貨安排（不是多叫）' : '') + '</span></div>'
           + '<div class="hl"><span>' + esc(x.name) + (x.size ? ' ' + esc(x.size) : '') + '</span><b>' + (x.qty ? x.qty + esc(x.unit) : '') + '</b></div>'
           + (x.code ? '<div class="hl sub"><span>' + esc(x.code) + '</span><span>' + (x.said && x.said.replace(/\s/g, '') !== String(x.name).replace(/\s/g, '') ? '廠商寫：' + esc(x.said) : '') + '</span></div>' : '')
           + (x.unsure ? '<div class="hl dwarn"><span>⚠ 品項待確認（照廠商寫的記）</span><span></span></div>' : '')
