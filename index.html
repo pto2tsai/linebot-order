@@ -250,6 +250,21 @@
   var CATS = [['白蝦', /白蝦/], ['草蝦', /草蝦/], ['透抽／小卷', /透抽|小卷|冰卷|中卷/], ['鮭魚', /鮭/], ['魷魚', /魷/], ['干貝／扇貝', /干貝|扇貝/], ['鯛魚', /鯛/]];
   var REC = '⭐ 推薦';
   var MORE_MAX = 20;   // 其他品項一次最多列幾筆
+  /**
+   * v1001-CL（蔡阿博 10/6：「同樣項目是跳來跳去的，可讓他們都在同區嗎」）同一個品名的各規格排在一起、規格小到大；
+   * 品名之間照原本的順序（最常買的那個品名排前面）。只改畫面排序，不動送出的資料
+   */
+  function specNum(sp) {
+    var m = String(sp || '').match(/(\d+(?:\.\d+)?)\s*\/\s*\d+/) || String(sp || '').match(/(\d+(?:\.\d+)?)/);
+    return m ? parseFloat(m[1]) : Infinity;
+  }
+  function groupedItems() {
+    var first = {};
+    state.items.forEach(function (it, i) { if (!(it.name in first)) first[it.name] = i; });
+    return state.items.map(function (it, i) { return { it: it, i: i, g: first[it.name], n: specNum(it.spec) }; })
+      .sort(function (a, b) { return a.g - b.g || (a.n === b.n ? 0 : a.n < b.n ? -1 : 1) || a.i - b.i; })
+      .map(function (x) { return x.it; });
+  }
   function catOf(it) { for (var i = 0; i < CATS.length; i++) if (CATS[i][1].test(it.name)) return CATS[i][0]; return '其他'; }
   var app = document.getElementById('app');
   var bar = document.getElementById('bar');
@@ -565,9 +580,10 @@
     var words = f.split(/\s+/).filter(String);
     var hit = function (it) { var t = (it.name + ' ' + it.spec).toUpperCase(); return words.every(function (w) { return t.indexOf(w.toUpperCase()) !== -1; }); };
     var moreN = 0, moreCut = 0;
+    var list = groupedItems();
     [['order', '這天的品項'], ['usual', state.buy ? '這家常叫的品項' : '您常買的品項'], ['rec', '⭐ 推薦品項'], ['old', '以前買過的其他品項'], ['more', state.buy ? '其他品項（這家沒叫過）' : '其他品項（以前沒買過）']].forEach(function (sec) {
       var part = '';
-      state.items.forEach(function (it) {
+      list.forEach(function (it) {
         var sc = state.orig[it.code] ? 'order' : (it.sec || 'usual');
         if (sc !== sec[0]) return;
         // v1001-BT（蔡阿博 10/2：「應該要顯示所有曾經買過的商品」）以前買過的直接列；沒買過的其他品項才要搜尋
