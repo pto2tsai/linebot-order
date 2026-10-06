@@ -262,6 +262,11 @@
   var KINDS = [/卡啦/, /鮭/, /蝦|南極星/, /魷|小卷|透抽|中卷|冰卷|花枝|章魚|龍珠/, /土魠/, /鯛/, /鰻/, /比目/, /鱈/, /鯖/, /干貝|扇貝|蛤|貝/, /丸|餃/];
   function kindOf(it) { for (var i = 0; i < KINDS.length; i++) if (KINDS[i].test(it.name)) return 'k' + i; return 'n:' + it.name; }
   function groupedItems() {
+    // v1001-CP（蔡阿博 10/6：「排列照著品號排列就好」）只列指定品項的客戶（固定清單）照品號排
+    if (state.items.some(function (it) { return it.fix; })) {
+      return state.items.filter(function (it) { return it.fix; }).sort(function (a, b) { return a.code < b.code ? -1 : a.code > b.code ? 1 : 0; })
+        .concat(state.items.filter(function (it) { return !it.fix; }));
+    }
     var firstK = {}, firstN = {};
     state.items.forEach(function (it, i) {
       var k = kindOf(it);
