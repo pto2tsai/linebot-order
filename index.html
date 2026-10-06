@@ -258,11 +258,18 @@
     var m = String(sp || '').match(/(\d+(?:\.\d+)?)\s*\/\s*\d+/) || String(sp || '').match(/(\d+(?:\.\d+)?)/);
     return m ? parseFloat(m[1]) : Infinity;
   }
+  // v1001-CN（蔡阿博 10/6 截圖：名字不一樣的鮭魚、小卷還是分散）先照種類排在一起，再照品名、規格
+  var KINDS = [/卡啦/, /鮭/, /蝦|南極星/, /魷|小卷|透抽|中卷|冰卷|花枝|章魚|龍珠/, /土魠/, /鯛/, /鰻/, /比目/, /鱈/, /鯖/, /干貝|扇貝|蛤|貝/, /丸|餃/];
+  function kindOf(it) { for (var i = 0; i < KINDS.length; i++) if (KINDS[i].test(it.name)) return 'k' + i; return 'n:' + it.name; }
   function groupedItems() {
-    var first = {};
-    state.items.forEach(function (it, i) { if (!(it.name in first)) first[it.name] = i; });
-    return state.items.map(function (it, i) { return { it: it, i: i, g: first[it.name], n: specNum(it.spec) }; })
-      .sort(function (a, b) { return a.g - b.g || (a.n === b.n ? 0 : a.n < b.n ? -1 : 1) || a.i - b.i; })
+    var firstK = {}, firstN = {};
+    state.items.forEach(function (it, i) {
+      var k = kindOf(it);
+      if (!(k in firstK)) firstK[k] = i;
+      if (!(it.name in firstN)) firstN[it.name] = i;
+    });
+    return state.items.map(function (it, i) { return { it: it, i: i, k: firstK[kindOf(it)], g: firstN[it.name], n: specNum(it.spec) }; })
+      .sort(function (a, b) { return a.k - b.k || a.g - b.g || (a.n === b.n ? 0 : a.n < b.n ? -1 : 1) || a.i - b.i; })
       .map(function (x) { return x.it; });
   }
   function catOf(it) { for (var i = 0; i < CATS.length; i++) if (CATS[i][1].test(it.name)) return CATS[i][0]; return '其他'; }
