@@ -793,7 +793,14 @@
   var dashView = 'dash';   // 看板／打單清單（v0929-AB）
   try { dashView = localStorage.getItem('dashView') || 'dash'; } catch (e) { }
   var dashTest = false;   // 顯示測試群（9/27：用測試群下單要在看板看得到）
+  // v1001-CX 自己人選單的按鈕帶 &tab=dash|key|buy → 直接開那一頁（只看第一次，之後照自己切的）
+  var dashTabOnce = (function () {
+    var qs = new URLSearchParams(location.search), t = qs.get('tab') || '';
+    if (!t) { try { t = new URLSearchParams((qs.get('liff.state') || '').replace(/^[^?]*\?/, '')).get('tab') || ''; } catch (e) { } }
+    return /^(dash|key|buy)$/.test(t) ? t : '';
+  })();
   function startDash() {
+    if (dashTabOnce) { dashView = dashTabOnce; dashTabOnce = ''; }
     document.getElementById('title').textContent = '主管看板';
     document.getElementById('subtitle').textContent = '讀取中…';
     show('<div class="load"><div class="stage"><div class="road"></div><div class="lane"></div><span class="wind w1"></span><span class="wind w2"></span><span class="wind w3"></span><span class="wind w4"></span><div class="ride"><div class="jump"><img class="rider" src="rider.png" alt="蝦兄騎車送貨中"></div></div></div><div class="t">正在整理<i>…</i></div><div class="sm"></div></div>');
