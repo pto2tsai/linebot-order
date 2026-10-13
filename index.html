@@ -977,6 +977,11 @@
     box.innerHTML = '<div class="empty">讀取中…</div>';
     call({ liff: 'purchase', q: q }).then(function (r) {
       if (!r.ok) { box.innerHTML = '<div class="empty">' + esc(r.error || '讀不到') + '</div>'; return; }
+      showBuy(r, q);
+    }).catch(function (err) { box.innerHTML = '<div class="empty">讀不到：' + esc(err && err.message || err) + '</div>'; });
+  }
+  function showBuy(r, q) {
+      var box = document.getElementById('blist');
       var h = '';
       if (r.suppliers && r.suppliers.length && !q) h += '<details class="dpast"><summary>📋 叫貨連結（貼到廠商群公告）<span class="h2tip">' + r.suppliers.length + ' 家</span></summary><div class="hist">'
         + r.suppliers.map(function (x, i) { return '<div class="bsup"><span>' + esc(x.name) + '</span><button data-link="' + esc(x.link) + '">複製連結</button></div>'; }).join('')
@@ -987,7 +992,7 @@
         return '<div class="hist"><div class="hh"><b>' + esc(x.supplier) + '</b><span class="no">' + esc(x.at) + (x.who ? '・' + esc(x.who) : '') + (x.status === '報價' ? '・廠商報價' : x.status === '鼎新進貨' ? '・鼎新進貨' : x.status === '出貨安排' ? '・出貨安排（不是多叫）' : '') + '</span></div>'
           + '<div class="hl"><span>' + esc(x.name) + (x.size ? ' ' + esc(x.size) : '') + '</span><b>' + (x.qty ? x.qty + esc(x.unit) : '') + '</b></div>'
           + (x.code ? '<div class="hl sub"><span>' + esc(x.code) + '</span><span>' + (x.said && x.said.replace(/\s/g, '') !== String(x.name).replace(/\s/g, '') ? '廠商寫：' + esc(x.said) : '') + '</span></div>' : '')
-          + (x.unsure ? '<div class="hl dwarn"><span>⚠ 品項待確認（照廠商寫的記）</span><span></span></div>' : '')
+          + (x.unsure ? '<div class="hl dwarn"><span>⚠ 品項待確認（照廠商寫的記）</span>' + (x.id ? '<button class="tedit bfix" data-id="' + esc(x.id) + '">處理</button>' : '<span></span>') + '</div>' : '')
           + (x.price || x.due ? '<div class="hl sub"><span>' + (x.due ? esc(x.due.replace(/^\d{4}-0?(\d+)-0?(\d+)$/, '$1/$2')) + ' 到' : '') + '</span><span>' + (x.price ? x.price + ' ' + esc(x.priceUnit) : '') + '</span></div>' : '')
           + '</div>';
       }).join('');
@@ -995,7 +1000,58 @@
       Array.prototype.forEach.call(box.querySelectorAll('[data-link]'), function (b) {
         b.onclick = function () { copyText(b.getAttribute('data-link')).then(function () { b.textContent = '已複製'; setTimeout(function () { b.textContent = '複製連結'; }, 1200); }); };
       });
-    }).catch(function (err) { box.innerHTML = '<div class="empty">讀不到：' + esc(err && err.message || err) + '</div>'; });
+      // v1001-DM（蔡阿博 10/13：進貨紅字「我們沒有任何作為」）品項待確認的：點選品號、打品號、不用改、記錯了
+      var byId = {};
+      r.rows.forEach(function (x) { if (x.id) byId[x.id] = x; });
+      Array.prototype.forEach.call(box.querySelectorAll('.bfix'), function (b) {
+        b.onclick = function () {
+          var row = b.closest('.hl'), nx = row.nextElementSibling;
+          if (nx && nx.classList.contains('tedbox')) { nx.parentNode.removeChild(nx); return; }
+          var x = byId[b.getAttribute('data-id')] || {};
+          var cands = x.cands || [];
+          var ed = document.createElement('div');
+          ed.className = 'tedbox';
+          ed.innerHTML = '<div class="tet"><span>廠商寫：' + esc(x.said || x.name) + '</span><b>' + (x.qty ? x.qty + esc(x.unit) : '') + '</b></div>'
+            + (cands.length ? '<div class="tpicks"><div class="tip">是哪一個？點了就記這個品號</div>' + cands.map(function (c) {
+              return '<button class="tpick" data-code="' + esc(c.code) + '" data-name="' + esc(c.name) + '">' + esc(c.name) + '<small>' + esc(c.code) + (c.past ? '・' + esc(c.past) : '') + '</small></button>';
+            }).join('') + '</div>' : '<div class="tet"><span>主檔找不到像的，可以直接打品號</span></div>')
+            + '<input type="text" autocapitalize="characters" placeholder="或打品號，例如 AE50267A">'
+            + '<div class="teb"><button data-a="pick">用這個品號</button><button data-a="ok">不用改</button><button data-a="void" class="red">記錯了</button></div>';
+          row.parentNode.insertBefore(ed, row.nextSibling);
+          var inp = ed.querySelector('input');
+          var send = function (act, code, k) {
+            Array.prototype.forEach.call(ed.querySelectorAll('button'), function (y) { y.disabled = true; });
+            if (k) k.textContent = '處理中…';
+            call({ liff: 'buyFix', id: x.id, act: act, code: code || '', q: q }).then(function (r2) {
+              if (!r2.ok) { alert(r2.error || '沒有成功，請再按一次'); Array.prototype.forEach.call(ed.querySelectorAll('button'), function (y) { y.disabled = false; }); return; }
+              showBuy(r2, q);
+            }).catch(function () { alert('沒有成功，請再按一次'); Array.prototype.forEach.call(ed.querySelectorAll('button'), function (y) { y.disabled = false; }); });
+          };
+          Array.prototype.forEach.call(ed.querySelectorAll('.tpick'), function (k) {
+            k.onclick = function () {
+              if (!confirm('確定是這個？\n\n' + k.getAttribute('data-name') + '（' + k.getAttribute('data-code') + '）')) return;
+              send('pick', k.getAttribute('data-code'), null);
+            };
+          });
+          Array.prototype.forEach.call(ed.querySelectorAll('.teb button'), function (k) {
+            k.onclick = function () {
+              var a = k.getAttribute('data-a');
+              if (a === 'pick') {
+                var c = String(inp.value || '').trim().toUpperCase();
+                if (!c) { alert('先打品號（或點上面的候選）'); inp.focus(); return; }
+                send('pick', c, k);
+              } else if (a === 'ok') {
+                if (!confirm('品號不用改，照廠商寫的記？\n（紅字會拿掉）')) return;
+                send('ok', '', k);
+              } else {
+                if (!confirm('這一筆記錯了（重複、不是叫貨）？\n按確定就從進貨拿掉')) return;
+                if (!confirm('再確認一次：作廢這一筆？')) return;
+                send('void', '', k);
+              }
+            };
+          });
+        };
+      });
   }
   /** 打單清單：還沒出貨的 LINE 訂單，列鼎新品號、數量；按品號複製，打完按「已打」（記在這支手機／電腦）。打完客人又改 → 提醒 */
   function keyinKey(o) { return 'keyin:' + o.day + '|' + o.customer; }
