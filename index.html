@@ -184,6 +184,18 @@
   .tdone:disabled { opacity: .5; }
   /* v1001-DC 要處理：點選候選品號 */
   .tpicks { margin: 8px 0 2px; }
+  /* v1001-DK 看板「修改」：分批／改件數／取消 */
+  .tedit { flex: none; margin-left: 8px; border: 1px solid var(--line); background: #fff; color: var(--ink); font-weight: 700; border-radius: 8px; padding: 2px 10px; font-size: 14px; }
+  .tedit:disabled { opacity: .5; }
+  .tedbox { margin: 6px 0 4px; padding: 10px; border-radius: 10px; background: #f2f7fd; }
+  .tedbox .tet { display: flex; gap: 8px; font-size: 14px; color: var(--sub); margin-bottom: 6px; }
+  .tedbox .tet span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tedbox .tet b { flex: none; color: var(--ink); }
+  .tedbox input { width: 100%; box-sizing: border-box; font-size: 17px; padding: 8px 10px; border: 1px solid var(--blue); border-radius: 10px; margin-bottom: 8px; }
+  .tedbox .teb { display: flex; gap: 6px; }
+  .tedbox .teb button { flex: 1; white-space: nowrap; font-size: 15px; font-weight: 700; border-radius: 10px; padding: 8px 4px; border: 1.5px solid var(--blue-d); background: #fff; color: var(--blue-d); }
+  .tedbox .teb button.red { border-color: var(--coral-d); color: var(--coral-d); }
+  .tedbox .teb button:disabled { opacity: .5; }
   .tpicks .tip { font-size: 14px; color: var(--sub, #667); margin-bottom: 6px; }
   .tpick { display: block; width: 100%; text-align: left; border: 1.5px solid var(--blue-d); background: #fff; color: var(--ink, #123); border-radius: 10px; padding: 9px 12px; margin: 6px 0; font-size: 15px; line-height: 1.35; }
   .tpick small { display: block; color: var(--blue-d); font-weight: 700; font-size: 13px; margin-top: 2px; }
@@ -815,6 +827,10 @@
       renderDash(r);
     }).catch(function (err) { fail('讀不到：' + (err && err.message || err)); });
   }
+  /** v1001-DK 看板一項的「修改」按鈕（ids＝訂單異動的哪幾列） */
+  function editBtn(ids, name, qty, unit) {
+    return '<button class="tedit" data-ids="' + esc(ids.join(',')) + '" data-name="' + esc(name) + '" data-qty="' + (Number(qty) || 0) + '" data-unit="' + esc(unit || '件') + '">修改</button>';
+  }
   function renderDash(r) {
     if (dashView === 'buy' && !r.canBuy) dashView = 'dash';   // v1001-CD 進貨分頁只給「看進價」打勾的人
     document.getElementById('subtitle').textContent = r.at + ' 更新';
@@ -844,7 +860,7 @@
         + (x.id && x.cands && x.cands.length ? '<div class="tpicks"><div class="tip">是哪一個？點了就排進打單清單</div>' + x.cands.map(function (c) {
           return '<button class="tpick" data-id="' + esc(x.id) + '" data-code="' + esc(c.code) + '" data-name="' + esc(c.name) + '">' + esc(c.name) + '<small>' + esc(c.code) + '</small></button>';
         }).join('') + '</div>' : '')   // v1001-DC 沒品號的直接點選候選品號
-        + (x.id ? '<div class="hl"><span></span><button class="tdone" data-id="' + esc(x.id) + '"' + (x.fix ? ' data-fix="1"' : '') + '>✓ 處理好了</button></div>' : '') + '</div>';
+        + (x.id ? '<div class="hl"><span></span><span>' + (x.fix ? editBtn([x.id], x.name, x.qty, x.unit) : '') + '<button class="tdone" data-id="' + esc(x.id) + '"' + (x.fix ? ' data-fix="1"' : '') + '>✓ 處理好了</button></span></div>' : '') + '</div>';
     }).join('') : shrimp('date', '都處理完了，蝦兄約會去！', '');
     // 每位業務
     h += '<h2>每位業務手上待處理的</h2>';
@@ -859,7 +875,7 @@
       } else h += '<h2>' + (d.title ? d.title + ' ' : '') + esc(d.label) + ' 要出的單' + (d.total ? '<span class="h2tip">共 ' + d.orders.length + ' 家・' + esc(d.total) + '</span>' : '') + '</h2>';
       h += d.orders.length ? d.orders.map(function (o) {
         return '<div class="hist"><div class="hh"><b>' + esc(o.customer) + '</b><span class="no">' + esc(o.arrive) + ' 到・' + esc(o.sales) + '</span></div>'
-          + o.lines.map(function (x) { return '<div class="hl"><span>' + esc(x.name) + '</span><b>' + x.qty + esc(x.unit) + '</b></div>'; }).join('')
+          + o.lines.map(function (x) { return '<div class="hl"><span>' + esc(x.name) + '</span><b>' + x.qty + esc(x.unit) + (x.ids && x.ids.length ? editBtn(x.ids, x.name, x.qty, x.unit) : '') + '</b></div>'; }).join('')
           + o.pending.map(function (x) { return '<div class="hl dwarn"><span>⚠ ' + esc(x.name) + '（' + esc(x.why) + '）</span><b>' + (x.qty ? x.qty + esc(x.unit) : '') + '</b></div>'; }).join('')
           + '</div>';
       }).join('') : '<div class="empty">沒有</div>';
@@ -879,6 +895,47 @@
           if (!r2.ok) { alert(r2.error || '沒有成功，請再按一次'); startDash(); return; }
           renderDash(r2);
         }).catch(function () { alert('沒有成功，請再按一次'); startDash(); });
+      };
+    });
+    // v1001-DK（蔡阿博 10/13：「不可能每次都跟你說才改」）「修改」：分批（先出幾件、剩的記待補）、改件數、取消
+    Array.prototype.forEach.call(document.querySelectorAll('.tedit'), function (b) {
+      b.onclick = function () {
+        var row = b.closest('.hl');
+        var nx = row.nextElementSibling;
+        if (nx && nx.classList.contains('tedbox')) { nx.parentNode.removeChild(nx); return; }
+        var name = b.getAttribute('data-name'), total = Number(b.getAttribute('data-qty')) || 0, unit = b.getAttribute('data-unit') || '件';
+        var box = document.createElement('div');
+        box.className = 'tedbox';
+        box.innerHTML = '<div class="tet"><span>' + esc(name) + '</span><b>原本 ' + total + esc(unit) + '</b></div>'
+          + '<input type="number" inputmode="numeric" min="1" placeholder="填件數（分批填這次先出幾' + esc(unit) + '）">'
+          + '<div class="teb"><button data-a="split">分批</button><button data-a="qty">改件數</button><button data-a="cancel" class="red">取消這項</button></div>';
+        row.parentNode.insertBefore(box, row.nextSibling);
+        var inp = box.querySelector('input');
+        Array.prototype.forEach.call(box.querySelectorAll('.teb button'), function (k) {
+          k.onclick = function () {
+            var a = k.getAttribute('data-a'), n = Math.round(Number(String(inp.value).trim()));
+            var req = { liff: 'dashEdit', act: a, ids: b.getAttribute('data-ids').split(','), test: dashTest };
+            if (a === 'split') {
+              if (total < 2) { alert('只有 ' + total + unit + '，不能分批'); return; }
+              if (!(n >= 1 && n < total)) { alert('先填這次先出幾' + unit + '（1 到 ' + (total - 1) + '）'); inp.focus(); return; }
+              if (!confirm(name + '\n\n這次先出 ' + n + unit + '，剩 ' + (total - n) + unit + ' 記成待補？\n（每天早上提醒、到貨也提醒，銷貨單進來自動結案）')) return;
+              req.qty = n;
+            } else if (a === 'qty') {
+              if (!(n >= 1)) { alert('先填要改成幾' + unit + '（不要了請按「取消這項」）'); inp.focus(); return; }
+              if (!confirm(name + '\n\n' + total + unit + ' → ' + n + unit + '？')) return;
+              req.qty = n;
+            } else {
+              if (!confirm('取消「' + name + '　' + total + unit + '」？')) return;
+              if (!confirm('再確認一次：這一項不出了？')) return;
+            }
+            Array.prototype.forEach.call(box.querySelectorAll('button'), function (x) { x.disabled = true; });
+            k.textContent = '處理中…';
+            call(req).then(function (r2) {
+              if (!r2.ok) { alert(r2.error || '沒有成功，請再按一次'); startDash(); return; }
+              renderDash(r2);
+            }).catch(function () { alert('沒有成功，請再按一次'); startDash(); });
+          };
+        });
       };
     });
     // v1001-BA 要處理＝待辦：處理好了才拿掉
