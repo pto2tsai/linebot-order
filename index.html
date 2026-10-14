@@ -860,7 +860,7 @@
         + (x.id && x.cands && x.cands.length ? '<div class="tpicks"><div class="tip">是哪一個？點了就排進打單清單</div>' + x.cands.map(function (c) {
           return '<button class="tpick" data-id="' + esc(x.id) + '" data-code="' + esc(c.code) + '" data-name="' + esc(c.name) + '">' + esc(c.name) + '<small>' + esc(c.code) + '</small></button>';
         }).join('') + '</div>' : '')   // v1001-DC 沒品號的直接點選候選品號
-        + (x.id ? '<div class="hl"><span></span><span>' + (x.fix ? editBtn([x.id], x.name, x.qty, x.unit) : '') + '<button class="tdone" data-id="' + esc(x.id) + '"' + (x.fix ? ' data-fix="1"' : '') + '>✓ 處理好了</button></span></div>' : '') + '</div>';
+        + (x.id ? '<div class="hl"><span></span><span>' + (x.fix ? editBtn([x.id], x.name, x.qty, x.unit) : '') + '<button class="tdone" data-id="' + esc(x.id) + '"' + (x.fix ? ' data-fix="1"' : '') + (x.nocode ? ' data-nocode="1"' : '') + '>✓ 處理好了</button></span></div>' : '') + '</div>';
     }).join('') : shrimp('date', '都處理完了，蝦兄約會去！', '');
     // 每位業務
     h += '<h2>每位業務手上待處理的</h2>';
@@ -946,7 +946,9 @@
         if (b.getAttribute('data-fix')) {
           if (confirm('這一項要出貨嗎？\n\n「確定」＝照單出（排進打單清單）\n「取消」＝不出貨')) req = { liff: 'dashFix', act: 'confirm', ids: req.ids, test: dashTest };
           else if (!confirm('不出貨，只把提醒拿掉？（這一項不會出現在打單清單）')) return;
-        } else if (!confirm('這一項處理好了？按確定就從「要處理」拿掉')) return;
+        } else if (!confirm(b.getAttribute('data-nocode')
+          ? '⚠️ 這一項還沒有品號，按「處理好了」只會把提醒拿掉，不會進打單清單。\n\n要出貨的話，請按「取消」，先點上面的品號。\n\n確定只拿掉提醒？'
+          : '這一項處理好了？按確定就從「要處理」拿掉')) return;   // v1001-DQ（10/14 北魚、欣玉豐按了處理好了就不見、沒進打單清單）
         b.disabled = true; b.textContent = '處理中…';
         call(req).then(function (r2) {
           if (!r2.ok) { alert(r2.error || '沒有成功，請再按一次'); b.disabled = false; b.textContent = '✓ 處理好了'; return; }
