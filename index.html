@@ -187,6 +187,8 @@
   /* v1001-DK 看板「修改」：分批／改件數／取消 */
   .tedit { flex: none; margin-left: 8px; border: 1px solid var(--line); background: #fff; color: var(--ink); font-weight: 700; border-radius: 8px; padding: 2px 10px; font-size: 14px; }
   .tedit:disabled { opacity: .5; }
+  .dundo { background: #fff8f6; border: 1.5px solid var(--coral); }
+  .tundo { flex: none; border: 1.5px solid var(--coral-d); background: #fff; color: var(--coral-d); font-weight: 700; border-radius: 10px; padding: 4px 10px; font-size: 14px; white-space: nowrap; }
   .tedbox { margin: 6px 0 4px; padding: 10px; border-radius: 10px; background: #f2f7fd; }
   .tedbox .tet { display: flex; gap: 8px; font-size: 14px; color: var(--sub); margin-bottom: 6px; }
   .tedbox .tet span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -847,6 +849,11 @@
       + r.days.filter(function (d) { return !d.past; }).map(function (d, i) { return '<div class="dbox"><b>' + d.orders.length + ' 家</b><span>' + esc(d.title || d.label) + '出' + (d.total ? '<br>' + esc(d.total) : '') + '</span></div>'; }).join('')
       + '<div class="dbox' + (r.issues.length ? ' warn' : '') + '"><b>' + r.issues.length + ' 項</b><span>要處理' + (stale ? '・<em>' + stale + ' 項太久</em>' : '') + '</span></div></div>'
       + '<div class="dbtns"><button class="drefresh" id="dRefresh">重新整理</button><button class="drefresh' + (r.withTest ? ' on' : '') + '" id="dTest">' + (r.withTest ? '✓ 含測試群' : '顯示測試群') + '</button></div>';
+    // v1001-DU 剛取消的（10 分鐘內）可以復原
+    if (r.undo && r.undo.length) h += r.undo.map(function (u) {
+      return '<div class="hist dundo"><div class="hh"><b>剛取消：' + esc(u.customer) + '</b><span class="st"><button class="tundo" data-ids="' + esc(u.ids.join(',')) + '">復原（' + u.left + ' 分內）</button></span></div>'
+        + '<div class="hl"><span>' + esc(u.name) + '</span><b>' + u.qty + esc(u.unit) + '</b></div></div>';
+    }).join('');
     // 異常
     h += '<h2>要處理的（最久的在前）</h2>';
     var auto = [];
@@ -933,9 +940,20 @@
             call(req).then(function (r2) {
               if (!r2.ok) { alert(r2.error || '沒有成功，請再按一次'); startDash(); return; }
               renderDash(r2);
+              alert((a === 'cancel' ? '已取消（10 分鐘內可以在最上面按「復原」）' : '改好了') + '\n\n記得在群裡跟客人說一聲，小幫手不會通知客人');   // v1001-DU
             }).catch(function () { alert('沒有成功，請再按一次'); startDash(); });
           };
         });
+      };
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.tundo'), function (b) {
+      b.onclick = function () {
+        if (!confirm('復原這一項？會改回取消前的樣子')) return;
+        b.disabled = true; b.textContent = '處理中…';
+        call({ liff: 'dashUndo', ids: b.getAttribute('data-ids').split(','), test: dashTest }).then(function (r2) {
+          if (!r2.ok) { alert(r2.error || '沒有成功，請再按一次'); startDash(); return; }
+          renderDash(r2);
+        }).catch(function () { alert('沒有成功，請再按一次'); startDash(); });
       };
     });
     // v1001-BA 要處理＝待辦：處理好了才拿掉
