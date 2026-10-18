@@ -105,6 +105,11 @@
   .qty button:disabled { opacity: .35; }
   .qty input { width: 56px; height: 48px; text-align: center; font-size: 20px; font-weight: 700; border: 0; border-left: 1px solid var(--line); border-right: 1px solid var(--line); border-radius: 0; color: var(--ink); }
   .unit { font-size: 14px; color: var(--sub); }
+  /* v1001-ED 門市客戶：同一行切換「件｜包」（蔡阿博 10/18：每個品項兩行太麻煩） */
+  .item.pk { grid-template-areas: "name qty" "spec ut" "tag tag"; }
+  .ut { grid-area: ut; justify-self: end; display: flex; margin-top: 6px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .ut button { min-width: 52px; height: 36px; border: 0; background: #fff; font-size: 16px; color: var(--sub); }
+  .ut button.on { background: var(--blue); color: #fff; font-weight: 700; }
   /* 到貨日固定在上面（蔡阿博 9/27：不用滑到最下面才能選；v0928-X 改成希望到貨日） */
   /* 最近 4 天（截單前含今天）＋第 5 格自己指定日期（蔡阿博 9/27） */
   .duebar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; padding: 6px 10px 8px; max-width: 640px; margin: 0 auto; }
@@ -265,7 +270,7 @@
   var API = params0.get('api') || '';
   var LIFF_ID = params0.get('id') || '';
   var state = { g: '', items: [], dues: [], range: null, earliest: '', orders: [], history: [], due: '', moveTo: '',
-    qty: {}, orig: {}, filter: '', cat: '', note: '', tab: 'order' };
+    qty: {}, orig: {}, filter: '', cat: '', note: '', tab: 'order', unitSel: {} };
   // 分類：品名有這些字就歸這一類；兩類以上才顯示分類按鈕
   var CATS = [['白蝦', /白蝦/], ['草蝦', /草蝦/], ['透抽／小卷', /透抽|小卷|冰卷|中卷/], ['鮭魚', /鮭/], ['魷魚', /魷/], ['干貝／扇貝', /干貝|扇貝/], ['鯛魚', /鯛/]];
   var REC = '⭐ 推薦';
@@ -448,15 +453,39 @@
     mask.addEventListener('click', function (e) { if (e.target === mask) { mask.remove(); renderDues(); } });
   }
 
-  function itemHtml(it) {
+  /**
+   * v1001-ED（蔡阿博 10/18：「每個品項都有兩個不是很麻煩嗎」）門市客戶：「單包」那項（品號~）不另外列一行，
+   * 在同一行用「件｜包」切換；這張單上件、包都有的才分兩行列
+   */
+  function packOf(code) {
+    if (!state.packIdx) { state.packIdx = {}; state.items.forEach(function (x) { if (x.real) state.packIdx[x.real] = x; }); }
+    return state.packIdx[code] || null;
+  }
+  function bothLines(code) { var pk = packOf(code); return !!pk && !!state.orig[code] && !!state.orig[pk.code]; }
+  /** 這項現在用哪個單位：選過的 → 單上只有包的 → 上次買的是包 → 件 */
+  function unitOf(code) {
+    var pk = packOf(code);
+    if (!pk) return '';
+    if (state.unitSel[code]) return state.unitSel[code];
+    if ((state.qty[pk.code] || state.orig[pk.code]) && !(state.qty[code] || state.orig[code])) return 'pk';
+    var last = '';
+    (state.history || []).some(function (o) { return (o.lines || []).some(function (l) { if (l.code === code || l.code === pk.code) { last = l.code === pk.code ? 'pk' : 'pc'; return true; } return false; }); });
+    return last || 'pc';
+  }
+  function itemHtml(it0) {
+    var pk = !it0.real && !bothLines(it0.code) ? packOf(it0.code) : null;
+    var it = pk && unitOf(it0.code) === 'pk' ? pk : it0;   // 選包 → 數量記在「品號~」那項
     var q = state.qty[it.code] || 0;
     var c0 = state.orig[it.code] || 0;
     var out = it.stock === '缺貨' && !c0;   // 單上本來就有的，缺貨也能改少
     var tags = (c0 && !q ? '<span class="tag drop">不要了</span>' : c0 && q !== c0 ? '<span class="tag was">原本 ' + c0 + esc(it.unit) + '</span>' : '')
       + (it.badge ? '<span class="tag badge">' + esc(it.badge) + '</span>' : '')
+      + (pk && it === pk && pk.hint ? '<span class="tag badge">' + esc(pk.hint) + '</span>' : '')   // v1001-ED 選包才提示「1件=30包」
       + (out ? '<span class="tag out">缺貨</span>' : it.stock === '安排生產' ? '<span class="tag make">等待產出</span>' : '');
-    return '<div class="item' + itemCls(it.code) + (out ? ' off' : '') + '">'
-      + '<div class="name">' + esc(it.name) + '</div><div class="spec" title="' + esc(it.spec) + '">' + esc(it.spec) + (it.hint ? '　<span class="hintx">' + esc(it.hint) + '</span>' : '') + '</div>'
+    return '<div class="item' + itemCls(it.code) + (out ? ' off' : '') + (pk ? ' pk' : '') + '">'
+      + '<div class="name">' + esc(pk ? it0.name : it.name) + '</div><div class="spec" title="' + esc(it.spec) + '">' + esc(it.spec) + (!pk && it.hint ? '　<span class="hintx">' + esc(it.hint) + '</span>' : '') + '</div>'
+      + (pk ? '<div class="ut"><button data-ut="pc" data-r="' + esc(it0.code) + '" class="' + (it === it0 ? 'on' : '') + '">' + esc(it0.unit || '件') + '</button>'
+        + '<button data-ut="pk" data-r="' + esc(it0.code) + '" class="' + (it === pk ? 'on' : '') + '">' + esc(pk.unit) + '</button></div>' : '')
       + (tags ? '<div class="tagrow">' + tags + '</div>' : '')
       + (out ? '' : '<div class="qty"><button class="minus" data-c="' + esc(it.code) + '" data-d="-1"' + (q ? '' : ' disabled') + ' aria-label="減少">−</button>'
         + '<input inputmode="numeric" pattern="[0-9]*" data-c="' + esc(it.code) + '" value="' + (q || '') + '" placeholder="0" aria-label="數量">'
@@ -617,7 +646,9 @@
       var part = '';
       list.forEach(function (it) {
         // v1001-CM（蔡阿博 10/6：「最常買的品名與以前買過的其他品項整合在一起」）以前買過的併進同一區，同品名排在一起
-        var sc = state.orig[it.code] ? 'order' : it.sec === 'old' ? 'usual' : (it.sec || 'usual');
+        if (it.real && !bothLines(it.real)) return;   // v1001-ED 單包那項在同一行切換，不另外列
+        var pk0 = !it.real && !bothLines(it.code) ? packOf(it.code) : null;
+        var sc = (state.orig[it.code] || (pk0 && state.orig[pk0.code])) ? 'order' : it.sec === 'old' ? 'usual' : (it.sec || 'usual');
         if (sc !== sec[0]) return;
         // v1001-BT（蔡阿博 10/2：「應該要顯示所有曾經買過的商品」）以前買過的直接列；沒買過的其他品項才要搜尋
         if (sc === 'more' && !f && !state.qty[it.code]) return;
@@ -694,6 +725,15 @@
     if (b.dataset.act === 'ask') { askStaff(b); return; }
     if (b.dataset.sfix) { staffFix(b); return; }
     if (b.dataset.cat !== undefined) { state.cat = b.dataset.cat; render(); return; }
+    if (b.dataset.ut) {   // v1001-ED 件｜包切換：數量跟著換過去
+      var r0 = b.dataset.r, pk = packOf(r0);
+      if (!pk || unitOf(r0) === b.dataset.ut) return;
+      var from = b.dataset.ut === 'pk' ? r0 : pk.code, to = b.dataset.ut === 'pk' ? pk.code : r0;
+      state.qty[to] = state.qty[from] || 0; state.qty[from] = 0;
+      state.unitSel[r0] = b.dataset.ut;
+      render();
+      return;
+    }
     var c = b.dataset.c;
     if (!c) return;
     state.qty[c] = Math.max(0, Math.min(9999, (state.qty[c] || 0) + Number(b.dataset.d)));
@@ -1157,6 +1197,7 @@
   function applyList(r, cached, mEdit) {
     var keep = !cached && state.stale && dirty();   // 等最新資料的時候客人已經在選了 → 選的留著，只換資料
     state.items = r.items || [];
+    state.packIdx = null; if (!keep) state.unitSel = {};   // v1001-ED
     state.buy = !!r.buy;   // v1001-BP 叫貨畫面（廠商群）
     state.staff = !!r.staff; state.staffPending = r.staffPending || {};   // v1001-BS 業務打開客人的連結
     state.catalog = '';   // 清單重拿 → 其他品項也重拿
