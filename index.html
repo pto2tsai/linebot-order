@@ -831,8 +831,11 @@
       return '<li>' + esc(x.it.name) + ' ' + esc(x.it.spec) + '　' + what + '</li>';
     }).join('') + '</ol>'
       // v1001-EE（蔡阿博 10/18：件跟包可能會搞混）有用包下的 → 送出前再提醒一次
-      + (list.some(function (x) { var it = edit ? x.it : x; return it && it.real && (edit ? x.q : state.qty[x.code]); })
-        ? '<div class="pkwarn">⚠ 橘色的是用「<b>包</b>」下的（單包，不是整件），請再看一次單位對不對</div>' : '') + (function () { var a = afterList(); return a.length ? '<div class="due">' + (edit ? '改好後整張：' : '') + '共 ' + a.length + ' 項，' + esc(totalText(a)) + '</div>' : ''; })()
+      + (function () {   // v1001-EH 小單位不只包（片、尾…）：照這張單上用到的寫
+        var us = [];
+        list.forEach(function (x) { var it = edit ? x.it : x; if (it && it.real && (edit ? x.q : state.qty[x.code]) && us.indexOf(it.unit) === -1) us.push(it.unit); });
+        return us.length ? '<div class="pkwarn">⚠ 橘色的是用「<b>' + esc(us.join('、')) + '</b>」下的（不是整件），請再看一次單位對不對</div>' : '';
+      })() + (function () { var a = afterList(); return a.length ? '<div class="due">' + (edit ? '改好後整張：' : '') + '共 ' + a.length + ' 項，' + esc(totalText(a)) + '</div>' : ''; })()
       + '<div class="due">到貨日：' + esc(dueLabel(state.due))
       + (state.moveTo ? ' → <span style="color:#e35f4a">' + esc(dueLabel(state.moveTo)) + '</span>' : '') + '</div>'
       + (state.note.trim() ? '<div class="due" style="font-weight:400">備註：' + esc(state.note.trim()) + '</div>' : '')
