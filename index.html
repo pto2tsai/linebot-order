@@ -110,6 +110,12 @@
   .ut { grid-area: ut; justify-self: end; display: flex; margin-top: 6px; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
   .ut button { min-width: 52px; height: 36px; border: 0; background: #fff; font-size: 16px; color: var(--sub); }
   .ut button.on { background: var(--blue); color: #fff; font-weight: 700; }
+  /* v1001-EE（蔡阿博 10/18：件跟包下單時可能會搞混）選「包」整張卡換顏色、按鈕橘色，確認時再提醒一次 */
+  .ut button.on.pkon { background: #e8820c; }
+  .item.pkmode { background: #fff6e8; }
+  .tag.pku { background: #ffe8c7; color: #9a5300; font-weight: 700; }
+  b.pku { color: #c46a00; }
+  .pkwarn { background: #fff6e8; border: 1px solid #f3c27a; color: #7a4600; border-radius: 10px; padding: 8px 10px; margin: 6px 0 4px; font-size: 15px; }
   /* 到貨日固定在上面（蔡阿博 9/27：不用滑到最下面才能選；v0928-X 改成希望到貨日） */
   /* 最近 4 天（截單前含今天）＋第 5 格自己指定日期（蔡阿博 9/27） */
   .duebar { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; padding: 6px 10px 8px; max-width: 640px; margin: 0 auto; }
@@ -461,6 +467,13 @@
     if (!state.packIdx) { state.packIdx = {}; state.items.forEach(function (x) { if (x.real) state.packIdx[x.real] = x; }); }
     return state.packIdx[code] || null;
   }
+  /** 45包 → 「=1件15包」 */
+  function pkEq(q, pk) { var c = Math.floor(q / pk.pack), r = q - c * pk.pack; return '=' + c + '件' + (r ? r + pk.unit : ''); }
+  /** 確認畫面的數量：包用橘色、換算成件 */
+  function qtyHtml(q, it) {
+    if (!it || !it.real || !it.pack) return '<b>' + q + esc(it ? it.unit : '') + '</b>';
+    return '<b class="pku">' + q + esc(it.unit) + '</b>' + (q >= it.pack ? '（' + esc(pkEq(q, it)) + '）' : '');
+  }
   function bothLines(code) { var pk = packOf(code); return !!pk && !!state.orig[code] && !!state.orig[pk.code]; }
   /** 這項現在用哪個單位：選過的 → 單上只有包的 → 上次買的是包 → 件 */
   function unitOf(code) {
@@ -480,12 +493,12 @@
     var out = it.stock === '缺貨' && !c0;   // 單上本來就有的，缺貨也能改少
     var tags = (c0 && !q ? '<span class="tag drop">不要了</span>' : c0 && q !== c0 ? '<span class="tag was">原本 ' + c0 + esc(it.unit) + '</span>' : '')
       + (it.badge ? '<span class="tag badge">' + esc(it.badge) + '</span>' : '')
-      + (pk && it === pk && pk.hint ? '<span class="tag badge">' + esc(pk.hint) + '</span>' : '')   // v1001-ED 選包才提示「1件=30包」
+      + (pk && it === pk ? '<span class="tag pku">單位：' + esc(pk.unit) + '　' + esc(pk.hint || '') + (q >= pk.pack ? '（' + esc(pkEq(q, pk)) + '）' : '') + '</span>' : '')   // v1001-ED/EE 選包：寫清楚單位、換算
       + (out ? '<span class="tag out">缺貨</span>' : it.stock === '安排生產' ? '<span class="tag make">等待產出</span>' : '');
-    return '<div class="item' + itemCls(it.code) + (out ? ' off' : '') + (pk ? ' pk' : '') + '">'
+    return '<div class="item' + itemCls(it.code) + (out ? ' off' : '') + (pk ? ' pk' : '') + (pk && it === pk ? ' pkmode' : '') + '">'
       + '<div class="name">' + esc(pk ? it0.name : it.name) + '</div><div class="spec" title="' + esc(it.spec) + '">' + esc(it.spec) + (!pk && it.hint ? '　<span class="hintx">' + esc(it.hint) + '</span>' : '') + '</div>'
       + (pk ? '<div class="ut"><button data-ut="pc" data-r="' + esc(it0.code) + '" class="' + (it === it0 ? 'on' : '') + '">' + esc(it0.unit || '件') + '</button>'
-        + '<button data-ut="pk" data-r="' + esc(it0.code) + '" class="' + (it === pk ? 'on' : '') + '">' + esc(pk.unit) + '</button></div>' : '')
+        + '<button data-ut="pk" data-r="' + esc(it0.code) + '" class="' + (it === pk ? 'on pkon' : '') + '">' + esc(pk.unit) + '</button></div>' : '')
       + (tags ? '<div class="tagrow">' + tags + '</div>' : '')
       + (out ? '' : '<div class="qty"><button class="minus" data-c="' + esc(it.code) + '" data-d="-1"' + (q ? '' : ' disabled') + ' aria-label="減少">−</button>'
         + '<input inputmode="numeric" pattern="[0-9]*" data-c="' + esc(it.code) + '" value="' + (q || '') + '" placeholder="0" aria-label="數量">'
@@ -812,11 +825,14 @@
     var mask = document.createElement('div');
     mask.className = 'mask';
     mask.innerHTML = '<div class="sheet"><h3>' + (edit ? '確認修改' + (o.no ? ' #' + esc(o.no) : '') : state.buy ? '確認叫貨' : '確認訂單') + '</h3><ol>' + (list.length ? '' : '<li>品項、件數不變</li>') + list.map(function (x) {
-      if (!edit) return '<li>' + esc(x.name) + ' ' + esc(x.spec) + '　<b>' + state.qty[x.code] + esc(x.unit) + '</b></li>';
+      if (!edit) return '<li>' + esc(x.name) + ' ' + esc(x.spec) + '　' + qtyHtml(state.qty[x.code], x) + '</li>';
       var u = esc(x.it.unit);
-      var what = !x.q ? '<b style="color:#e35f4a">不要了</b>' : !x.cur ? '<b>' + x.q + u + '</b>（新增）' : x.cur + u + ' → <b>' + x.q + u + '</b>';
+      var what = !x.q ? '<b style="color:#e35f4a">不要了</b>' : !x.cur ? qtyHtml(x.q, x.it) + '（新增）' : x.cur + u + ' → ' + qtyHtml(x.q, x.it);
       return '<li>' + esc(x.it.name) + ' ' + esc(x.it.spec) + '　' + what + '</li>';
-    }).join('') + '</ol>' + (function () { var a = afterList(); return a.length ? '<div class="due">' + (edit ? '改好後整張：' : '') + '共 ' + a.length + ' 項，' + esc(totalText(a)) + '</div>' : ''; })()
+    }).join('') + '</ol>'
+      // v1001-EE（蔡阿博 10/18：件跟包可能會搞混）有用包下的 → 送出前再提醒一次
+      + (list.some(function (x) { var it = edit ? x.it : x; return it && it.real && (edit ? x.q : state.qty[x.code]); })
+        ? '<div class="pkwarn">⚠ 橘色的是用「<b>包</b>」下的（單包，不是整件），請再看一次單位對不對</div>' : '') + (function () { var a = afterList(); return a.length ? '<div class="due">' + (edit ? '改好後整張：' : '') + '共 ' + a.length + ' 項，' + esc(totalText(a)) + '</div>' : ''; })()
       + '<div class="due">到貨日：' + esc(dueLabel(state.due))
       + (state.moveTo ? ' → <span style="color:#e35f4a">' + esc(dueLabel(state.moveTo)) + '</span>' : '') + '</div>'
       + (state.note.trim() ? '<div class="due" style="font-weight:400">備註：' + esc(state.note.trim()) + '</div>' : '')
