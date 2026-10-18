@@ -467,12 +467,12 @@
     if (!state.packIdx) { state.packIdx = {}; state.items.forEach(function (x) { if (x.real) state.packIdx[x.real] = x; }); }
     return state.packIdx[code] || null;
   }
-  /** 45包 → 「=1件15包」 */
-  function pkEq(q, pk) { var c = Math.floor(q / pk.pack), r = q - c * pk.pack; return '=' + c + '件' + (r ? r + pk.unit : ''); }
+  /** 45包 → 「=1.5件」（蔡阿博 10/18：包數照寫，換算成幾件；除不盡寫 ≈） */
+  function pkEq(q, pk) { var v = q / pk.pack, r = Math.round(v * 100) / 100; return (Math.abs(v - r) < 1e-9 ? '=' : '≈') + r + '件'; }
   /** 確認畫面的數量：包用橘色、換算成件 */
   function qtyHtml(q, it) {
     if (!it || !it.real || !it.pack) return '<b>' + q + esc(it ? it.unit : '') + '</b>';
-    return '<b class="pku">' + q + esc(it.unit) + '</b>' + (q >= it.pack ? '（' + esc(pkEq(q, it)) + '）' : '');
+    return '<b class="pku">' + q + esc(it.unit) + '</b>' + (q ? '（' + esc(pkEq(q, it)) + '）' : '');
   }
   function bothLines(code) { var pk = packOf(code); return !!pk && !!state.orig[code] && !!state.orig[pk.code]; }
   /** 這項現在用哪個單位：選過的 → 單上只有包的 → 上次買的是包 → 件 */
@@ -493,7 +493,7 @@
     var out = it.stock === '缺貨' && !c0;   // 單上本來就有的，缺貨也能改少
     var tags = (c0 && !q ? '<span class="tag drop">不要了</span>' : c0 && q !== c0 ? '<span class="tag was">原本 ' + c0 + esc(it.unit) + '</span>' : '')
       + (it.badge ? '<span class="tag badge">' + esc(it.badge) + '</span>' : '')
-      + (pk && it === pk ? '<span class="tag pku">單位：' + esc(pk.unit) + '　' + esc(pk.hint || '') + (q >= pk.pack ? '（' + esc(pkEq(q, pk)) + '）' : '') + '</span>' : '')   // v1001-ED/EE 選包：寫清楚單位、換算
+      + (pk && it === pk ? '<span class="tag pku">單位：' + esc(pk.unit) + (q ? '　' + q + esc(pk.unit) + esc(pkEq(q, pk)) : '') + (pk.hint ? '（' + esc(pk.hint) + '）' : '') + '</span>' : '')   // v1001-ED/EE 選包：寫清楚單位、換算
       + (out ? '<span class="tag out">缺貨</span>' : it.stock === '安排生產' ? '<span class="tag make">等待產出</span>' : '');
     return '<div class="item' + itemCls(it.code) + (out ? ' off' : '') + (pk ? ' pk' : '') + (pk && it === pk ? ' pkmode' : '') + '">'
       + '<div class="name">' + esc(pk ? it0.name : it.name) + '</div><div class="spec" title="' + esc(it.spec) + '">' + esc(it.spec) + (!pk && it.hint ? '　<span class="hintx">' + esc(it.hint) + '</span>' : '') + '</div>'
