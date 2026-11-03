@@ -209,6 +209,22 @@
   .tedbox .teb button { flex: 1; white-space: nowrap; font-size: 15px; font-weight: 700; border-radius: 10px; padding: 8px 4px; border: 1.5px solid var(--blue-d); background: #fff; color: var(--blue-d); }
   .tedbox .teb button.red { border-color: var(--coral-d); color: var(--coral-d); }
   .tedbox .teb button:disabled { opacity: .5; }
+  /* v1001-FM 看板「改規格」 */
+  .tedbox .teb4 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .tedbox .teb4 button { font-size: 17px; font-weight: 700; border-radius: 12px; padding: 12px 4px; border: 1.5px solid var(--blue-d); background: #fff; color: var(--blue-d); }
+  .tedbox .teb4 button.red { border-color: var(--coral-d); color: var(--coral-d); }
+  .tedbox .teb4 button.on { background: var(--blue-d); color: #fff; }
+  .tedbox .teb4 button:disabled { opacity: .5; }
+  .tstep .tqty { display: flex; gap: 8px; margin-top: 10px; }
+  .tstep .tqty input { flex: 1; margin: 0; }
+  .tstep .tok { flex: none; font-size: 17px; font-weight: 700; border: 0; border-radius: 10px; padding: 0 18px; background: var(--blue-d); color: #fff; }
+  .tstep .tip { font-size: 14px; color: var(--sub); margin-top: 6px; }
+  .tspecbox .tpick small { display: inline-block; margin: 0 0 0 8px; padding: 0 6px; border-radius: 6px; background: #e7f6ea; color: #1d7a36; font-size: 12px; vertical-align: 2px; }
+  .tspecbox { margin-top: 10px; }
+  .tspecbox .tip { font-size: 14px; color: var(--sub, #667); margin-bottom: 6px; }
+  .tspecbox .tlist { max-height: 340px; overflow-y: auto; }
+  .tspecbox .tall { width: 100%; border: 1.5px dashed var(--blue-d); background: #fff; color: var(--blue-d); border-radius: 10px; padding: 8px; font-size: 14px; font-weight: 700; margin-top: 4px; }
+  .tspec { flex: none; margin-right: 8px; border: 1px solid var(--blue-d); background: #fff; color: var(--blue-d); font-weight: 700; border-radius: 8px; padding: 2px 10px; font-size: 14px; }
   .tpicks .tip { font-size: 14px; color: var(--sub, #667); margin-bottom: 6px; }
   .tpick { display: block; width: 100%; text-align: left; border: 1.5px solid var(--blue-d); background: #fff; color: var(--ink, #123); border-radius: 10px; padding: 9px 12px; margin: 6px 0; font-size: 15px; line-height: 1.35; }
   .tpick small { display: block; color: var(--blue-d); font-weight: 700; font-size: 13px; margin-top: 2px; }
@@ -888,6 +904,53 @@
       renderDash(r);
     }).catch(function (err) { fail('讀不到：' + (err && err.message || err)); });
   }
+  /**
+   * v1001-FM 看板「改規格」（蔡阿博 11/3：「應該是在主管看板上處理吧」「再用問的方法不對還要一直問」）
+   * 直接列出可以換的規格（這家買過的排最前），搜尋格打 50/60、庫卡馬、250克 篩選，點了就換品號
+   */
+  function specKey(q) {
+    return String(q || '').toUpperCase().replace(/(\d)\s*(公克|克)/g, '$1G').replace(/(\d)\s*公斤/g, '$1KG').replace(/(\d)K(?![G\w])/g, '$1KG')
+      .split(/[\s,，、*＊]+/).filter(function (t) { return t; });
+  }
+  var SPEC_FIRST = 6;   // 一開始只列最可能的幾個，其他的按「看更多」
+  function openSpec(box, ids, q) {
+    box.innerHTML = '<div class="tspecbox"><div class="tip">找規格中…</div></div>';
+    var sp = box.querySelector('.tspecbox');
+    call({ liff: 'dashSpecs', ids: ids, q: q || '', test: dashTest }).then(function (r) {
+      if (!r.ok) { sp.innerHTML = '<div class="tip">' + esc(r.error || '讀不到') + '</div>'; return; }
+      sp.innerHTML = '<input type="search" placeholder="🔍 打 50/60、庫卡馬、250克"' + (q ? ' value="' + esc(q) + '"' : '') + '><div class="tlist"></div>';
+      var inp = sp.querySelector('input'), lst = sp.querySelector('.tlist'), more = false;
+      var draw = function () {
+        var toks = specKey(inp.value);
+        var hit = r.list.filter(function (x) { return toks.every(function (t) { return x.key.indexOf(t) !== -1; }); });
+        var show = toks.length || more || r.all ? hit : hit.slice(0, SPEC_FIRST);
+        lst.innerHTML = show.map(function (x) {
+          return '<button class="tpick" data-code="' + esc(x.code) + '" data-name="' + esc(x.name) + '">' + esc(r.all ? x.name : (x.spec || x.name)) + (x.bought ? '<small>這家買過</small>' : '') + '</button>';
+        }).join('')
+          + (show.length < hit.length ? '<button class="tall tmore">看更多（還有 ' + (hit.length - show.length) + ' 種）</button>' : '')
+          + (hit.length ? '' : '<div class="tip">' + (r.list.length ? '沒有對得上的' : '沒有別的規格') + '</div>')
+          + (inp.value.trim() && !r.all && !hit.length ? '<button class="tall tany">在全部品項找「' + esc(inp.value.trim()) + '」</button>' : '');
+        Array.prototype.forEach.call(lst.querySelectorAll('.tpick'), function (k) {
+          k.onclick = function () {
+            if (!confirm((r.customer ? r.customer + '\n' : '') + r.cur + '\n→ ' + k.getAttribute('data-name') + '\n\n換成這個？')) return;
+            Array.prototype.forEach.call(lst.querySelectorAll('button'), function (x) { x.disabled = true; });
+            k.firstChild.textContent = '處理中…';
+            call({ liff: 'dashRespec', ids: ids, code: k.getAttribute('data-code'), test: dashTest }).then(function (r2) {
+              if (!r2.ok) { alert(r2.error || '沒有成功，請再按一次'); startDash(); return; }
+              renderDash(r2);
+              alert('改好了\n\n記得在群裡跟客人說一聲，小幫手不會通知客人');
+            }).catch(function () { alert('沒有成功，請再按一次'); startDash(); });
+          };
+        });
+        var m = lst.querySelector('.tmore');
+        if (m) m.onclick = function () { more = true; draw(); };
+        var any = lst.querySelector('.tany');
+        if (any) any.onclick = function () { openSpec(box, ids, inp.value.trim()); };
+      };
+      inp.oninput = draw;
+      draw();
+    }).catch(function () { sp.innerHTML = '<div class="tip">讀不到，請再按一次</div>'; });
+  }
   /** v1001-DK 看板一項的「修改」按鈕（ids＝訂單異動的哪幾列） */
   function editBtn(ids, name, qty, unit) {
     return '<button class="tedit" data-ids="' + esc(ids.join(',')) + '" data-name="' + esc(name) + '" data-qty="' + (Number(qty) || 0) + '" data-unit="' + esc(unit || '件') + '">修改</button>';
@@ -926,7 +989,7 @@
         + (x.id && x.cands && x.cands.length ? '<div class="tpicks"><div class="tip">是哪一個？點了就排進打單清單</div>' + x.cands.map(function (c) {
           return '<button class="tpick" data-id="' + esc(x.id) + '" data-code="' + esc(c.code) + '" data-name="' + esc(c.name) + '">' + esc(c.name) + '<small>' + esc(c.code) + '</small></button>';
         }).join('') + '</div>' : '')   // v1001-DC 沒品號的直接點選候選品號
-        + (x.id ? '<div class="hl"><span></span><span>' + (x.fix ? editBtn([x.id], x.name, x.qty, x.unit) : '') + '<button class="tdone" data-id="' + esc(x.id) + '"' + (x.fix ? ' data-fix="1"' : '') + (x.nocode ? ' data-nocode="1"' : '') + '>✓ 處理好了</button></span></div>' : '') + '</div>';
+        + (x.id ? '<div class="hl"><span></span><span>' + (x.fix ? editBtn([x.id], x.name, x.qty, x.unit) : '<button class="tspec" data-id="' + esc(x.id) + '">找規格</button>') + '<button class="tdone" data-id="' + esc(x.id) + '"' + (x.fix ? ' data-fix="1"' : '') + (x.nocode ? ' data-nocode="1"' : '') + '>✓ 處理好了</button></span></div>' : '') + '</div>';
     }).join('') : shrimp('date', '都處理完了，蝦兄約會去！', '');
     // 每位業務
     h += '<h2>每位業務手上待處理的</h2>';
@@ -963,44 +1026,71 @@
         }).catch(function () { alert('沒有成功，請再按一次'); startDash(); });
       };
     });
-    // v1001-DK（蔡阿博 10/13：「不可能每次都跟你說才改」）「修改」：分批（先出幾件、剩的記待補）、改件數、取消
+    // v1001-FM 要處理裡沒品號的：「找規格」→ 列出來點
+    Array.prototype.forEach.call(document.querySelectorAll('.tspec'), function (b) {
+      b.onclick = function () {
+        var row = b.closest('.hl');
+        var nx = row.nextElementSibling;
+        if (nx && nx.classList.contains('tedbox')) { nx.parentNode.removeChild(nx); return; }
+        var box = document.createElement('div');
+        box.className = 'tedbox';
+        row.parentNode.insertBefore(box, row.nextSibling);
+        openSpec(box, [b.getAttribute('data-id')]);
+      };
+    });
+    // v1001-DK（蔡阿博 10/13：「不可能每次都跟你說才改」）「修改」：改件數、改規格、分批、取消
+    // v1001-FM（蔡阿博 11/3：「UI還可以再簡單一點嗎」）先只有四個大按鈕，按了哪個才出現下一步
     Array.prototype.forEach.call(document.querySelectorAll('.tedit'), function (b) {
       b.onclick = function () {
         var row = b.closest('.hl');
         var nx = row.nextElementSibling;
         if (nx && nx.classList.contains('tedbox')) { nx.parentNode.removeChild(nx); return; }
         var name = b.getAttribute('data-name'), total = Number(b.getAttribute('data-qty')) || 0, unit = b.getAttribute('data-unit') || '件';
+        var ids = b.getAttribute('data-ids').split(',');
         var box = document.createElement('div');
         box.className = 'tedbox';
-        box.innerHTML = '<div class="tet"><span>' + esc(name) + '</span><b>原本 ' + total + esc(unit) + '</b></div>'
-          + '<input type="number" inputmode="numeric" min="1" placeholder="填件數（分批填這次先出幾' + esc(unit) + '）">'
-          + '<div class="teb"><button data-a="split">分批</button><button data-a="qty">改件數</button><button data-a="cancel" class="red">取消這項</button></div>';
+        box.innerHTML = '<div class="teb4"><button data-a="qty">改件數</button><button data-a="spec">改規格</button>'
+          + (total >= 2 ? '<button data-a="split">分批</button>' : '') + '<button data-a="cancel" class="red">取消</button></div><div class="tstep"></div>';
         row.parentNode.insertBefore(box, row.nextSibling);
-        var inp = box.querySelector('input');
-        Array.prototype.forEach.call(box.querySelectorAll('.teb button'), function (k) {
+        var step = box.querySelector('.tstep');
+        var send = function (req, k, msg) {
+          Array.prototype.forEach.call(box.querySelectorAll('button'), function (x) { x.disabled = true; });
+          if (k) k.textContent = '處理中…';
+          call(req).then(function (r2) {
+            if (!r2.ok) { alert(r2.error || '沒有成功，請再按一次'); startDash(); return; }
+            renderDash(r2);
+            alert(msg + '\n\n記得在群裡跟客人說一聲，小幫手不會通知客人');   // v1001-DU
+          }).catch(function () { alert('沒有成功，請再按一次'); startDash(); });
+        };
+        Array.prototype.forEach.call(box.querySelectorAll('.teb4 button'), function (k) {
           k.onclick = function () {
-            var a = k.getAttribute('data-a'), n = Math.round(Number(String(inp.value).trim()));
-            var req = { liff: 'dashEdit', act: a, ids: b.getAttribute('data-ids').split(','), test: dashTest };
-            if (a === 'split') {
-              if (total < 2) { alert('只有 ' + total + unit + '，不能分批'); return; }
-              if (!(n >= 1 && n < total)) { alert('先填這次先出幾' + unit + '（1 到 ' + (total - 1) + '）'); inp.focus(); return; }
-              if (!confirm(name + '\n\n這次先出 ' + n + unit + '，剩 ' + (total - n) + unit + ' 記成待補？\n（每天早上提醒、到貨也提醒，銷貨單進來自動結案）')) return;
-              req.qty = n;
-            } else if (a === 'qty') {
-              if (!(n >= 1)) { alert('先填要改成幾' + unit + '（不要了請按「取消這項」）'); inp.focus(); return; }
-              if (!confirm(name + '\n\n' + total + unit + ' → ' + n + unit + '？')) return;
-              req.qty = n;
-            } else {
-              if (!confirm('取消「' + name + '　' + total + unit + '」？')) return;
-              if (!confirm('再確認一次：這一項不出了？')) return;
+            var a = k.getAttribute('data-a');
+            Array.prototype.forEach.call(box.querySelectorAll('.teb4 button'), function (x) { x.classList.toggle('on', x === k); });
+            step.innerHTML = '';
+            if (a === 'spec') { openSpec(step, ids); return; }
+            if (a === 'cancel') {
+              k.classList.remove('on');
+              if (!confirm('取消「' + name + '　' + total + unit + '」？\n（10 分鐘內可以按「復原」）')) return;
+              send({ liff: 'dashEdit', act: 'cancel', ids: ids, test: dashTest }, k, '已取消（10 分鐘內可以在最上面按「復原」）');
+              return;
             }
-            Array.prototype.forEach.call(box.querySelectorAll('button'), function (x) { x.disabled = true; });
-            k.textContent = '處理中…';
-            call(req).then(function (r2) {
-              if (!r2.ok) { alert(r2.error || '沒有成功，請再按一次'); startDash(); return; }
-              renderDash(r2);
-              alert((a === 'cancel' ? '已取消（10 分鐘內可以在最上面按「復原」）' : '改好了') + '\n\n記得在群裡跟客人說一聲，小幫手不會通知客人');   // v1001-DU
-            }).catch(function () { alert('沒有成功，請再按一次'); startDash(); });
+            var split = a === 'split';
+            step.innerHTML = '<div class="tqty"><input type="number" inputmode="numeric" min="1" placeholder="' + (split ? '這次先出幾' + esc(unit) : '改成幾' + esc(unit)) + '"><button class="tok">確定</button></div>'
+              + '<div class="tip">原本 ' + total + esc(unit) + (split ? '，剩的記待補（到貨會提醒）' : '') + '</div>';
+            var inp = step.querySelector('input'), ok = step.querySelector('.tok');
+            inp.focus();
+            ok.onclick = function () {
+              var n = Math.round(Number(String(inp.value).trim()));
+              if (split) {
+                if (!(n >= 1 && n < total)) { alert('這次先出幾' + unit + '？（1 到 ' + (total - 1) + '）'); inp.focus(); return; }
+                if (!confirm(name + '\n\n這次先出 ' + n + unit + '，剩 ' + (total - n) + unit + ' 記待補？')) return;
+                send({ liff: 'dashEdit', act: 'split', ids: ids, qty: n, test: dashTest }, ok, '改好了');
+              } else {
+                if (!(n >= 1)) { alert('要改成幾' + unit + '？（不要了請按「取消」）'); inp.focus(); return; }
+                if (!confirm(name + '\n\n' + total + unit + ' → ' + n + unit + '？')) return;
+                send({ liff: 'dashEdit', act: 'qty', ids: ids, qty: n, test: dashTest }, ok, '改好了');
+              }
+            };
           };
         });
       };
